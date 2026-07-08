@@ -1,0 +1,137 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2026-07-05",
+  "workdayDefinition": {
+    "excludeWeekends": true,
+    "excludeNationalHolidays": false,
+    "note": "Libur nasional akan ditambahkan di v2.0"
+  },
+  "jenisLayanan": [
+    {
+      "id": "skb_ppn_bkp",
+      "nama": "SKB PPN BKP Strategis",
+      "slaType": "workdays",
+      "slaDays": 5,
+      "warningDays": 2,
+      "nextStep": null,
+      "category": "SKB"
+    },
+    {
+      "id": "skb_pph",
+      "nama": "SKB PPh 21/22/23",
+      "slaType": "workdays",
+      "slaDays": 5,
+      "warningDays": 2,
+      "nextStep": null,
+      "category": "SKB"
+    },
+    {
+      "id": "skb_phtb",
+      "nama": "SKB PHTB",
+      "slaType": "workdays",
+      "slaDays": 3,
+      "warningDays": 1,
+      "nextStep": null,
+      "category": "SKB"
+    },
+    {
+      "id": "skpkpp_ppystt",
+      "nama": "Penerbitan SKPKPP (SKPLB PPYSTT)",
+      "slaType": "calendar_month",
+      "slaMonths": 1,
+      "warningDays": 3,
+      "nextStep": "SPMKP",
+      "category": "SKPKPP"
+    },
+    {
+      "id": "skpkpp_plb",
+      "nama": "Penerbitan SKPKPP (PLB)",
+      "slaType": "calendar_month",
+      "slaMonths": 1,
+      "warningDays": 3,
+      "nextStep": "SPMKP",
+      "category": "SKPKPP"
+    },
+    {
+      "id": "skpkpp_riksis",
+      "nama": "Penerbitan SKPKPP (SKPLB RIKSIS)",
+      "slaType": "calendar_month",
+      "slaMonths": 1,
+      "warningDays": 3,
+      "nextStep": "SPMKP",
+      "category": "SKPKPP"
+    },
+    {
+      "id": "pendahuluan_ppn_coretax",
+      "nama": "Pengembalian Pendahuluan (PPN Coretax)",
+      "slaType": "calendar_month",
+      "slaMonths": 1,
+      "warningDays": 3,
+      "nextStep": "SKPKPP",
+      "category": "Pendahuluan"
+    },
+    {
+      "id": "pendahuluan_ppn_legacy",
+      "nama": "Pengembalian Pendahuluan (PPN Legacy)",
+      "slaType": "calendar_month",
+      "slaMonths": 1,
+      "warningDays": 3,
+      "nextStep": "SKPKPP",
+      "category": "Pendahuluan"
+    },
+    {
+      "id": "pendahuluan_tahunan_coretax",
+      "nama": "Pengembalian Pendahuluan (Tahunan Coretax)",
+      "slaType": "calendar_month",
+      "slaMonths": 1,
+      "warningDays": 3,
+      "nextStep": "SKPKPP",
+      "category": "Pendahuluan"
+    },
+    {
+      "id": "lb_ppystt_coretax",
+      "nama": "Pengembalian LB (PPYSTT Coretax)",
+      "slaType": "calendar_month",
+      "slaMonths": 3,
+      "warningDays": 3,
+      "nextStep": "SKPKPP",
+      "category": "LB"
+    },
+    {
+      "id": "lb_ppystt_legacy",
+      "nama": "Pengembalian LB (PPYSTT Legacy)",
+      "slaType": "calendar_month",
+      "slaMonths": 3,
+      "warningDays": 3,
+      "nextStep": "SKPKPP",
+      "category": "LB"
+    },
+    {
+      "id": "ppystt_selisih_skppkp",
+      "nama": "PPYSTT Coretax SELISIH SKPPKP",
+      "slaType": "calendar_month",
+      "slaMonths": 1,
+      "warningDays": 3,
+      "nextStep": "SKPKPP",
+      "category": "LB"
+    }
+  ],
+  "penyuluh": [
+    { "id": "eka",   "nama": "EKA MARDIANA",           "initials": "EM" },
+    { "id": "dani",  "nama": "DANI HARDIMAN",           "initials": "DH" },
+    { "id": "widhi", "nama": "WIDHI KANGKO POERNOMO",   "initials": "WK" },
+    { "id": "praes", "nama": "PRAESTRYANA ARGENTI",     "initials": "PA" },
+    { "id": "suci",  "nama": "SUCI SURYATI",            "initials": "SS" }
+  ],
+  "hasilPenelitian": ["Diterima", "Ditolak"],
+  "tahapProses": ["Awal", "Produk Hukum", "SKPKPP", "SPMKP"],
+  "statusSLA": {
+    "OVERDUE": { "label": "Lewat Tempo", "color": "red",    "priority": 1 },
+    "WARNING": { "label": "Warning H-N", "color": "yellow", "priority": 2 },
+    "SAFE":    { "label": "Aman",        "color": "green",  "priority": 3 }
+  },
+  "sessionTimeout": {
+    "inactivityMinutes": 15,
+    "warningBeforeMinutes": 2
+  }
+}
