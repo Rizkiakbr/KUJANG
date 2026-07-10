@@ -22,9 +22,10 @@ export default function Topbar() {
   };
 
   const roleLabel = {
-    penyuluh: 'Penyuluh',
-    admin:    'Administrator',
-    ketuakpp: 'Ketua KPP',
+    penyuluh:       'Penyuluh',
+    pelaksana:      'Pelaksana',
+    'kepala-seksi': 'Kepala Seksi',
+    ketuakpp:       'Ketua KPP',
   };
 
   return (

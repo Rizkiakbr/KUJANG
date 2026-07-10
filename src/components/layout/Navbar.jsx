@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, ClipboardList, FileText,
-  BarChart2, Upload, ScrollText, Shield
+  BarChart2, Upload, ScrollText, Shield, Users
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 
@@ -11,12 +11,18 @@ const NAV_ITEMS = {
     { to: '/tugas-saya', label: 'Tugas Saya',     icon: ClipboardList  },
     { to: '/laporan',    label: 'Laporan',          icon: BarChart2      },
   ],
-  admin: [
-    { to: '/monitoring', label: 'Monitoring',   icon: Shield         },
-    { to: '/dashboard',  label: 'Dashboard',    icon: LayoutDashboard},
-    { to: '/upload',     label: 'Upload Data',  icon: Upload         },
-    { to: '/laporan',    label: 'Laporan',      icon: BarChart2      },
-    { to: '/audit-log',  label: 'Audit Log',    icon: ScrollText     },
+  pelaksana: [
+    { to: '/monitoring', label: 'Monitoring',    icon: Shield         },
+    { to: '/dashboard',  label: 'Dashboard',     icon: LayoutDashboard},
+    { to: '/upload',     label: 'Upload Data',   icon: Upload         },
+    { to: '/laporan',    label: 'Laporan',        icon: BarChart2      },
+    { to: '/audit-log',  label: 'Audit Log',      icon: ScrollText     },
+  ],
+  'kepala-seksi': [
+    { to: '/dashboard-kasi', label: 'Dashboard Kasi', icon: LayoutDashboard },
+    { to: '/monitoring',     label: 'Monitoring',      icon: Shield          },
+    { to: '/laporan',        label: 'Laporan',          icon: BarChart2       },
+    { to: '/audit-log',      label: 'Audit Log',        icon: ScrollText      },
   ],
   ketuakpp: [
     { to: '/dashboard-ketua', label: 'Dashboard Ketua', icon: LayoutDashboard },
@@ -38,7 +44,7 @@ export default function Navbar() {
           <NavLink
             key={to}
             to={to}
-            id={`nav-${to.replace('/', '').replace('-', '')}`}
+            id={`nav-${to.replace(/\//g, '').replace(/-/g, '')}`}
             className={({ isActive }) =>
               `flex items-center gap-2 px-4 py-3 text-xs font-semibold whitespace-nowrap
                transition-all duration-200 border-b-2

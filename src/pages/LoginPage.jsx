@@ -27,9 +27,10 @@ export default function LoginPage() {
 
       // Redirect berdasarkan role
       const redirectMap = {
-        penyuluh: '/dashboard',
-        admin:    '/monitoring',
-        ketuakpp: '/dashboard-ketua',
+        penyuluh:       '/dashboard',
+        pelaksana:      '/monitoring',
+        'kepala-seksi': '/dashboard-kasi',
+        ketuakpp:       '/dashboard-ketua',
       };
       navigate(redirectMap[userData.role] || '/dashboard', { replace: true });
     } catch (err) {
@@ -253,7 +254,7 @@ export default function LoginPage() {
 
           {/* Footer */}
           <p className="mt-6 text-center text-[11px] text-gray-400">
-            KUJANG v1.0 · KPP Madya Bandung · DJP
+            KUJANG v2.0 · KPP Madya Bandung · DJP
           </p>
         </div>
       </div>

@@ -7,7 +7,6 @@ import {
   updateDoc,
   deleteDoc,
   query,
-  where,
   orderBy,
   serverTimestamp,
   Timestamp,
@@ -15,16 +14,28 @@ import {
 import { db } from '../config/firebaseConfig';
 import { calcJatuhTempo } from './slaService';
 import { writeAuditLog } from './auditService';
+import slaConfig from '../config/slaConfig.json';
 
 const COLLECTION = 'cases';
 
 /**
- * Hitung tahapSaatIni secara otomatis berdasarkan dokumen yang sudah ada
+ * Hitung tahapSaatIni secara dinamis berdasarkan alurTahap jenis layanan
+ * - SKB: hanya sampai Produk Hukum
+ * - Non-SKB: sampai SPMKP
  */
 function calcTahap(data) {
-  if (data.nomorSPMKP)        return 'SPMKP';
-  if (data.nomorSKPKPP)       return 'SKPKPP';
-  if (data.nomorProdukHukum)  return 'Produk Hukum';
+  const jenisConfig = slaConfig.jenisLayanan.find(j => j.id === data.jenisLayananId);
+  const alur = jenisConfig?.alurTahap ?? [];
+
+  // SKB — hanya sampai Produk Hukum
+  if (!alur.includes('SKPKPP')) {
+    return data.nomorProdukHukum ? 'Produk Hukum' : 'Awal';
+  }
+
+  // Non-SKB — sampai SPMKP
+  if (data.nomorSPMKP)       return 'SPMKP';
+  if (data.nomorSKPKPP)      return 'SKPKPP';
+  if (data.nomorProdukHukum) return 'Produk Hukum';
   return 'Awal';
 }
 
@@ -87,6 +98,7 @@ export async function createCase(data, currentUser) {
     tanggalSKPKPP:      toTimestamp(data.tanggalSKPKPP),
     nomorSPMKP:         data.nomorSPMKP          || '',
     tanggalSPMKP:       toTimestamp(data.tanggalSPMKP),
+    nominalRestitusi:   data.nominalRestitusi     ?? null,
     tahapSaatIni,
     createdBy:          currentUser.uid,
     createdAt:          serverTimestamp(),
@@ -134,6 +146,7 @@ export async function updateCase(id, data, currentUser) {
     tanggalSKPKPP:      toTimestamp(data.tanggalSKPKPP),
     nomorSPMKP:         data.nomorSPMKP          || '',
     tanggalSPMKP:       toTimestamp(data.tanggalSPMKP),
+    nominalRestitusi:   data.nominalRestitusi     ?? null,
     tahapSaatIni,
     updatedBy:          currentUser.uid,
     updatedAt:          serverTimestamp(),
@@ -152,9 +165,19 @@ export async function updateCase(id, data, currentUser) {
 }
 
 /**
- * Hapus kasus
+ * Hapus kasus — hanya Pelaksana yang diizinkan
+ * @param {string} id
+ * @param {object} caseData
+ * @param {{ uid, nama, role }} currentUser
  */
 export async function deleteCase(id, caseData, currentUser) {
+  // Ambil data terbaru untuk audit log jika caseData tidak tersedia
+  let kasusData = caseData;
+  if (!kasusData) {
+    const snap = await getDoc(doc(db, COLLECTION, id));
+    kasusData = snap.exists() ? snap.data() : null;
+  }
+
   await deleteDoc(doc(db, COLLECTION, id));
 
   await writeAuditLog({
@@ -163,7 +186,7 @@ export async function deleteCase(id, caseData, currentUser) {
     userRole: currentUser.role,
     action:   'DELETE_CASE',
     targetId: id,
-    detail:   `Hapus kasus: ${caseData?.namaWP || id}`,
+    detail:   `Hapus kasus: ${kasusData?.namaWP || id} (${kasusData?.jenisLayananId || '-'}) dihapus oleh ${currentUser.nama}`,
   });
 }
 

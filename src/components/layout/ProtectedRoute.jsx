@@ -3,13 +3,22 @@ import { useAuthStore } from '../../store/authStore';
 
 /** Route-to-role mapping: routes yang butuh role tertentu */
 const ROLE_MAP = {
-  '/dashboard':       ['penyuluh', 'admin'],
-  '/tugas-saya':      ['penyuluh', 'admin'],
-  '/monitoring':      ['admin', 'ketuakpp'],
-  '/upload':          ['admin'],
-  '/laporan':         ['penyuluh', 'admin', 'ketuakpp'],
-  '/audit-log':       ['admin', 'ketuakpp'],
+  '/dashboard':       ['penyuluh', 'pelaksana'],
+  '/tugas-saya':      ['penyuluh'],
+  '/monitoring':      ['pelaksana', 'kepala-seksi', 'ketuakpp'],
+  '/upload':          ['pelaksana'],
+  '/laporan':         ['penyuluh', 'pelaksana', 'kepala-seksi', 'ketuakpp'],
+  '/audit-log':       ['kepala-seksi', 'ketuakpp'],
   '/dashboard-ketua': ['ketuakpp'],
+  '/dashboard-kasi':  ['kepala-seksi'],
+};
+
+/** Home page per role setelah login */
+const HOME_BY_ROLE = {
+  penyuluh:       '/dashboard',
+  pelaksana:      '/monitoring',
+  'kepala-seksi': '/dashboard-kasi',
+  ketuakpp:       '/dashboard-ketua',
 };
 
 /**
@@ -37,13 +46,7 @@ export default function ProtectedRoute({ allowedRoles, children }) {
   // Cek role
   const roles = allowedRoles ?? ROLE_MAP[location.pathname];
   if (roles && !roles.includes(userData.role)) {
-    // Redirect ke halaman home role masing-masing
-    const homeByRole = {
-      penyuluh: '/dashboard',
-      admin:    '/monitoring',
-      ketuakpp: '/dashboard-ketua',
-    };
-    return <Navigate to={homeByRole[userData.role] || '/dashboard'} replace />;
+    return <Navigate to={HOME_BY_ROLE[userData.role] || '/dashboard'} replace />;
   }
 
   return children;

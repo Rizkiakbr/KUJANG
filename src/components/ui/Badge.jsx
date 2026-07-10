@@ -26,9 +26,10 @@ export function SLABadge({ code, label, size = 'md' }) {
  */
 export function RoleBadge({ role }) {
   const map = {
-    penyuluh: { label: 'Penyuluh',     cls: 'bg-blue-50  border-blue-200  text-blue-800'  },
-    admin:    { label: 'Admin',         cls: 'bg-purple-50 border-purple-200 text-purple-800'},
-    ketuakpp: { label: 'Ketua KPP',    cls: 'bg-gold/10  border-gold/30   text-gold-dark' },
+    penyuluh:       { label: 'Penyuluh',      cls: 'bg-blue-50   border-blue-200  text-blue-800'  },
+    pelaksana:      { label: 'Pelaksana',      cls: 'bg-purple-50 border-purple-200 text-purple-800'},
+    'kepala-seksi': { label: 'Kepala Seksi',   cls: 'bg-orange-50 border-orange-200 text-orange-800'},
+    ketuakpp:       { label: 'Ketua KPP',      cls: 'bg-gold/10   border-gold/30   text-gold-dark' },
   };
   const { label, cls } = map[role] || { label: role, cls: 'bg-gray-100 border-gray-200 text-gray-700' };
   return (

@@ -11,6 +11,7 @@ import LoginAlertModal from '../components/ui/LoginAlertModal';
 import { useGetCases, useCreateCase, useUpdateCase, useDeleteCase } from '../hooks/useCases';
 import { useSLAStatus } from '../hooks/useSLAStatus';
 import { useToastStore } from '../store/toastStore';
+import { useAuthStore } from '../store/authStore';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import slaConfig from '../config/slaConfig.json';
@@ -25,11 +26,13 @@ function fmtDate(ts) {
 
 export default function MonitoringPage() {
   const navigate = useNavigate();
+  const { userData } = useAuthStore();
+  const role = userData?.role;
 
   const [panelOpen, setPanelOpen]   = useState(false);
   const [panelMode, setPanelMode]   = useState('create');
   const [selectedCase, setSelected] = useState(null);
-  const [confirmId, setConfirmId]   = useState(null);
+  const [confirmKasus, setConfirmKasus] = useState(null); // kasus object untuk hapus
   const [search, setSearch]         = useState('');
   const [filterJenis, setFilterJenis] = useState('');
   const [filterPenyuluh, setFilterPenyuluh] = useState('');
@@ -81,11 +84,11 @@ export default function MonitoringPage() {
   };
 
   const handleDelete = async () => {
+    if (!confirmKasus) return;
     try {
-      const k = cases.find(c => c.id === confirmId);
-      await deleteMutation.mutateAsync({ id: confirmId, caseData: k });
-      addToast({ type: 'info', title: 'Kasus Dihapus', message: `Kasus ${k?.namaWP || ''} berhasil dihapus` });
-      setConfirmId(null);
+      await deleteMutation.mutateAsync({ id: confirmKasus.id, caseData: confirmKasus });
+      addToast({ type: 'info', title: 'Kasus Dihapus', message: `Kasus ${confirmKasus?.namaWP || ''} berhasil dihapus` });
+      setConfirmKasus(null);
     } catch (err) {
       addToast({ type: 'danger', title: 'Gagal Menghapus', message: err.message || 'Terjadi kesalahan' });
     }
@@ -109,12 +112,16 @@ export default function MonitoringPage() {
             </p>
           </div>
           <div className="flex gap-2">
-            <button onClick={() => navigate('/upload')} className="btn-outline flex items-center gap-1.5 text-xs">
-              <Upload size={13} /> Upload xlsx
-            </button>
-            <button onClick={openCreate} className="btn-primary flex items-center gap-1.5 text-xs">
-              <Plus size={13} /> Tambah Kasus
-            </button>
+            {role === 'pelaksana' && (
+              <button onClick={() => navigate('/upload')} className="btn-outline flex items-center gap-1.5 text-xs">
+                <Upload size={13} /> Upload xlsx
+              </button>
+            )}
+            {['penyuluh', 'pelaksana'].includes(role) && (
+              <button onClick={openCreate} className="btn-primary flex items-center gap-1.5 text-xs">
+                <Plus size={13} /> Tambah Kasus
+              </button>
+            )}
           </div>
         </div>
 
@@ -197,9 +204,16 @@ export default function MonitoringPage() {
                       <td className="px-3 py-3"><TahapBadge tahap={k.tahapSaatIni} /></td>
                       <td className="px-3 py-3">
                         <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                          <button onClick={() => openEdit(k)} className="bg-navy text-white px-2 py-1 rounded text-[10px] hover:bg-navy-light">Update</button>
+                          {['penyuluh', 'pelaksana'].includes(role) && (
+                            <button onClick={() => openEdit(k)} className="bg-navy text-white px-2 py-1 rounded text-[10px] hover:bg-navy-light">Update</button>
+                          )}
                           <button onClick={() => navigate(`/kasus/${k.id}`)} className="border border-gray-200 text-gray-600 px-2 py-1 rounded text-[10px] hover:bg-gray-50">Detail</button>
-                          <button onClick={() => setConfirmId(k.id)} className="bg-red-50 text-danger px-2 py-1 rounded text-[10px] hover:bg-red-100">Hapus</button>
+                          {role === 'pelaksana' && (
+                            <button onClick={() => {
+                              const jl = slaConfig.jenisLayanan.find(j => j.id === k.jenisLayananId);
+                              setConfirmKasus({ ...k, jenisLayanan: jl?.nama || k.jenisLayananId });
+                            }} className="bg-red-50 text-danger px-2 py-1 rounded text-[10px] hover:bg-red-100">Hapus</button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -229,11 +243,11 @@ export default function MonitoringPage() {
       <LoginAlertModal allCases={cases} isLoading={isLoading} />
 
       <ConfirmDialog
-        isOpen={!!confirmId}
+        isOpen={!!confirmKasus}
         title="Hapus Kasus"
-        message="Apakah Anda yakin ingin menghapus kasus ini? Tindakan ini tidak dapat dibatalkan."
+        kasusData={confirmKasus}
         onConfirm={handleDelete}
-        onCancel={() => setConfirmId(null)}
+        onCancel={() => setConfirmKasus(null)}
         isLoading={deleteMutation.isPending}
       />
     </div>

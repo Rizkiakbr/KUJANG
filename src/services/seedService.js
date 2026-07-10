@@ -16,13 +16,18 @@ import { calcJatuhTempo } from './slaService';
 const DEMO_PASSWORD = 'kujang2026';
 
 const DEMO_USERS = [
-  { nip: '198001012005011001', nama: 'EKA MARDIANA',         role: 'penyuluh', penyuluhId: 'eka'   },
-  { nip: '198002022005012002', nama: 'DANI HARDIMAN',         role: 'penyuluh', penyuluhId: 'dani'  },
-  { nip: '198003032005011003', nama: 'WIDHI KANGKO POERNOMO', role: 'penyuluh', penyuluhId: 'widhi' },
-  { nip: '198004042005012004', nama: 'PRAESTRYANA ARGENTI',   role: 'penyuluh', penyuluhId: 'praes' },
-  { nip: '198005052005012005', nama: 'SUCI SURYATI',          role: 'penyuluh', penyuluhId: 'suci'  },
-  { nip: 'admin001',           nama: 'Administrator',          role: 'admin',    penyuluhId: null    },
-  { nip: 'faisol001',          nama: 'Moch. Faisol',           role: 'ketuakpp', penyuluhId: null    },
+  // 5 Penyuluh
+  { nip: '198001012005011001', nama: 'EKA MARDIANA',         role: 'penyuluh',    penyuluhId: 'eka',   email: 'eka.mardiana@kujang.local'       },
+  { nip: '198002022005012002', nama: 'DANI HARDIMAN',         role: 'penyuluh',    penyuluhId: 'dani',  email: 'dani.hardiman@kujang.local'      },
+  { nip: '198003032005011003', nama: 'WIDHI KANGKO POERNOMO', role: 'penyuluh',    penyuluhId: 'widhi', email: 'widhi.kangko@kujang.local'       },
+  { nip: '198004042005012004', nama: 'PRAESTRYANA ARGENTI',   role: 'penyuluh',    penyuluhId: 'praes', email: 'praestryana.argenti@kujang.local'},
+  { nip: '198005052005012005', nama: 'SUCI SURYATI',          role: 'penyuluh',    penyuluhId: 'suci',  email: 'suci.suryati@kujang.local'       },
+  // Pelaksana (ganti admin lama)
+  { nip: 'pelaksana001',       nama: 'Silmy Eko (Pelaksana)', role: 'pelaksana',   penyuluhId: null,    email: 'pelaksana001@kujang.local'       },
+  // Kepala Seksi (ganti admin lama)
+  { nip: 'kasi001',            nama: 'Kepala Seksi Pelayanan',role: 'kepala-seksi',penyuluhId: null,    email: 'kasi001@kujang.local'            },
+  // Ketua KPP
+  { nip: 'faisol001',          nama: 'Moch. Faisol',          role: 'ketuakpp',    penyuluhId: null,    email: 'faisol001@kujang.local'          },
 ];
 
 const SEED_CASES = [
@@ -32,7 +37,7 @@ const SEED_CASES = [
     nomorLPAD: '-', tanggalLPAD: '2026-01-01', penyuluhId: 'eka',
     hasilPenelitian: 'Diterima',
     nomorProdukHukum: 'KET-00001/RKBPPN-CT/KPP.0911/2026', tanggalProdukHukum: '2026-01-08',
-    nomorSKPKPP: '', nomorSPMKP: '',
+    nomorSKPKPP: '', nomorSPMKP: '', nominalRestitusi: null,
   },
   {
     jenisLayananId: 'skb_pph', npwp: '0015248032441000',
@@ -40,7 +45,7 @@ const SEED_CASES = [
     nomorLPAD: 'BPS-00189/CT/KPP.0911/2026', tanggalLPAD: '2026-01-02', penyuluhId: 'dani',
     hasilPenelitian: 'Diterima',
     nomorProdukHukum: 'KET-0001/IMPOR-CT/KPP.0911/2026', tanggalProdukHukum: '2026-01-08',
-    nomorSKPKPP: '', nomorSPMKP: '',
+    nomorSKPKPP: '', nomorSPMKP: '', nominalRestitusi: null,
   },
   {
     jenisLayananId: 'skb_phtb', npwp: '3273197101540002',
@@ -48,7 +53,7 @@ const SEED_CASES = [
     nomorLPAD: 'BPE-00001/CT/KPP.0911/2026', tanggalLPAD: '2026-04-28', penyuluhId: 'eka',
     hasilPenelitian: 'Ditolak',
     nomorProdukHukum: 'S-0001/TANAHBANGUNAN-CT/KPP.0911/2026', tanggalProdukHukum: '2026-05-01',
-    nomorSKPKPP: '', nomorSPMKP: '',
+    nomorSKPKPP: '', nomorSPMKP: '', nominalRestitusi: null,
   },
   {
     jenisLayananId: 'skpkpp_ppystt', npwp: '0027906833406000',
@@ -57,7 +62,7 @@ const SEED_CASES = [
     hasilPenelitian: 'Diterima',
     nomorProdukHukum: 'KET-0001/KP-CT/KPP.0911/2026', tanggalProdukHukum: '2026-02-28',
     nomorSKPKPP: 'KET-0001/KP-CT/KPP.0911/2026', tanggalSKPKPP: '2026-02-28',
-    nomorSPMKP: '',
+    nomorSPMKP: '', nominalRestitusi: 75000000,
   },
   {
     jenisLayananId: 'pendahuluan_ppn_coretax', npwp: '0804577385423000',
@@ -65,7 +70,7 @@ const SEED_CASES = [
     nomorLPAD: 'BPE-21205/CT/KPP.0911/2026', tanggalLPAD: '2026-05-20', penyuluhId: 'suci',
     hasilPenelitian: 'Ditolak',
     nomorProdukHukum: 'S-00001/SKPPKP-CT/KPP.0911/2026', tanggalProdukHukum: '2026-06-19',
-    nomorSKPKPP: '', nomorSPMKP: '',
+    nomorSKPKPP: '', nomorSPMKP: '', nominalRestitusi: null,
   },
   {
     jenisLayananId: 'lb_ppystt_coretax', npwp: '0016452344444000',
@@ -74,7 +79,7 @@ const SEED_CASES = [
     hasilPenelitian: 'Diterima',
     nomorProdukHukum: '00002/447/16/441/CT/2026', tanggalProdukHukum: '2026-06-17',
     nomorSKPKPP: '00002/447/16/441/CT/2026', tanggalSKPKPP: '2026-06-17',
-    nomorSPMKP: '',
+    nomorSPMKP: '', nominalRestitusi: 150000000,
   },
   {
     jenisLayananId: 'ppystt_selisih_skppkp', npwp: '0210079638441000',
@@ -83,7 +88,7 @@ const SEED_CASES = [
     hasilPenelitian: 'Diterima',
     nomorProdukHukum: 'KEP-00227/KP-CT/KPP.0911/2026', tanggalProdukHukum: '2026-03-26',
     nomorSKPKPP: 'KEP-00227/KP-CT/KPP.0911/2026', tanggalSKPKPP: '2026-03-26',
-    nomorSPMKP: 'SPMKP-0022/2026', tanggalSPMKP: '2026-03-28',
+    nomorSPMKP: 'SPMKP-0022/2026', tanggalSPMKP: '2026-03-28', nominalRestitusi: 220000000,
   },
   {
     jenisLayananId: 'pendahuluan_ppn_legacy', npwp: '0016117145423000',
@@ -91,7 +96,7 @@ const SEED_CASES = [
     nomorLPAD: 'S-99339063/PPN1111/KPP.091103/2026', tanggalLPAD: '2026-06-07', penyuluhId: 'eka',
     hasilPenelitian: 'Ditolak',
     nomorProdukHukum: 'S-00010/SKPPKP-CT/KPP.0911/2026', tanggalProdukHukum: '2026-07-04',
-    nomorSKPKPP: '', nomorSPMKP: '',
+    nomorSKPKPP: '', nomorSPMKP: '', nominalRestitusi: null,
   },
 ];
 
@@ -109,7 +114,9 @@ function calcTahap(data) {
 
 /**
  * Seed semua demo users dan kasus ke Firestore.
- * Jalankan sekali dari halaman admin atau console browser.
+ * Jalankan sekali dari halaman login atau console browser.
+ * Email format: nip@kujang.djp (untuk NIP-based auth)
+ * Namun akun baru juga tersimpan email alternatif di Firestore untuk referensi.
  * @returns {{ usersCreated: number, casesCreated: number, errors: string[] }}
  */
 export async function seedDemoData() {
@@ -138,6 +145,7 @@ export async function seedDemoData() {
         nama:       u.nama,
         role:       u.role,
         penyuluhId: u.penyuluhId,
+        email:      u.email,
         isActive:   true,
         lastLogin:  null,
       });
@@ -167,6 +175,7 @@ export async function seedDemoData() {
         tanggalSKPKPP:      toTs(c.tanggalSKPKPP  || null),
         nomorSPMKP:         c.nomorSPMKP          || '',
         tanggalSPMKP:       toTs(c.tanggalSPMKP   || null),
+        nominalRestitusi:   c.nominalRestitusi     ?? null,
         tahapSaatIni:       calcTahap(c),
         createdBy:          'seed',
         createdAt:          serverTimestamp(),

@@ -44,12 +44,12 @@ export default function LoginAlertModal({ cases = [], allCases = [], isLoading =
 
     const overdue = cases.filter((c) => c.slaStatus?.code === 'OVERDUE');
     const warning = cases.filter((c) => c.slaStatus?.code === 'WARNING');
-    const adminOverdue = allCases.filter((c) => c.slaStatus?.code === 'OVERDUE');
-    const adminWarning = allCases.filter((c) => c.slaStatus?.code === 'WARNING');
+    const allOverdue = allCases.filter((c) => c.slaStatus?.code === 'OVERDUE');
+    const allWarning = allCases.filter((c) => c.slaStatus?.code === 'WARNING');
 
     let hasCritical = false;
     if (role === 'penyuluh') hasCritical = overdue.length > 0 || warning.length > 0;
-    if (role === 'admin')    hasCritical = adminOverdue.length > 0 || adminWarning.length > 0;
+    if (['pelaksana', 'kepala-seksi', 'ketuakpp'].includes(role)) hasCritical = allOverdue.length > 0 || allWarning.length > 0;
 
     if (!hasCritical) return;
 
@@ -183,8 +183,8 @@ export default function LoginAlertModal({ cases = [], allCases = [], isLoading =
     );
   }
 
-  /* ── ADMIN VIEW ── */
-  if (role === 'admin') {
+  /* ── PELAKSANA / KEPALA SEKSI / KETUA VIEW ── */
+  if (['pelaksana', 'kepala-seksi', 'ketuakpp'].includes(role)) {
     const overdue = allCases.filter((c) => c.slaStatus?.code === 'OVERDUE');
     const warning = allCases.filter((c) => c.slaStatus?.code === 'WARNING');
     const safe    = allCases.filter((c) => c.slaStatus?.code === 'SAFE');

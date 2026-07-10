@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { useForm, Controller } from 'react-hook-form';
+import { useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { format } from 'date-fns';
@@ -7,7 +7,9 @@ import { id as idLocale } from 'date-fns/locale';
 import { Save, Info } from 'lucide-react';
 import slaConfig from '../../config/slaConfig.json';
 import { calcJatuhTempo } from '../../services/slaService';
+import { useAuthStore } from '../../store/authStore';
 import { SLABadge } from '../ui/Badge';
+import CurrencyField from './CurrencyField';
 
 /* ── Zod Schema ── */
 const caseSchema = z.object({
@@ -20,6 +22,7 @@ const caseSchema = z.object({
   nomorProdukHukum:   z.string().optional(),
   nomorSKPKPP:        z.string().optional(),
   nomorSPMKP:         z.string().optional(),
+  nominalRestitusi:   z.number().min(0, 'Nominal tidak boleh negatif').optional().nullable(),
   npwp: z.string()
     .length(16, 'NPWP harus tepat 16 digit')
     .regex(/^\d{16}$/, 'NPWP hanya boleh angka'),
@@ -41,11 +44,13 @@ function FormField({ label, error, children, hint }) {
 }
 
 /**
- * CaseForm — form tambah/edit kasus
+ * CaseForm — form tambah/edit kasus dengan form dinamis berdasarkan alurTahap
  * @param {{ initialData?, onSubmit, onCancel, isSubmitting, currentSLAStatus? }} props
  */
 export default function CaseForm({ initialData, onSubmit, onCancel, isSubmitting, currentSLAStatus }) {
   const isEdit = !!initialData;
+  const { userData } = useAuthStore();
+  const role = userData?.role;
 
   const defaultValues = {
     jenisLayananId:     initialData?.jenisLayananId    || '',
@@ -57,6 +62,7 @@ export default function CaseForm({ initialData, onSubmit, onCancel, isSubmitting
     nomorProdukHukum:   initialData?.nomorProdukHukum  || '',
     nomorSKPKPP:        initialData?.nomorSKPKPP       || '',
     nomorSPMKP:         initialData?.nomorSPMKP        || '',
+    nominalRestitusi:   initialData?.nominalRestitusi  ?? null,
     npwp:               initialData?.npwp              || '',
     tanggalLPAD: initialData?.tanggalLPAD
       ? format(initialData.tanggalLPAD?.toDate?.() ?? new Date(initialData.tanggalLPAD), 'yyyy-MM-dd')
@@ -76,12 +82,27 @@ export default function CaseForm({ initialData, onSubmit, onCancel, isSubmitting
     register,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors },
   } = useForm({ resolver: zodResolver(caseSchema), defaultValues });
 
   // Auto-calculate jatuh tempo
   const watchedJenis = watch('jenisLayananId');
   const watchedLPAD  = watch('tanggalLPAD');
+
+  // Ambil config jenis layanan yang dipilih
+  const jenisConfig = slaConfig.jenisLayanan.find(j => j.id === watchedJenis);
+  const alurTahap = jenisConfig?.alurTahap ?? [];
+
+  // Flag tampil/sembunyikan section SKPKPP & SPMKP
+  const showSKPKPP = alurTahap.includes('SKPKPP');
+  const showSPMKP  = alurTahap.includes('SPMKP');
+
+  // Flag hak akses SPMKP
+  // Penyuluh: lihat tapi tidak bisa input
+  // Pelaksana: bisa input
+  const canViewSPMKP  = ['penyuluh', 'pelaksana', 'kepala-seksi', 'ketuakpp'].includes(role);
+  const spmkpReadOnly = role === 'penyuluh';
 
   let autoJatuhTempo = null;
   if (watchedJenis && watchedLPAD) {
@@ -116,7 +137,7 @@ export default function CaseForm({ initialData, onSubmit, onCancel, isSubmitting
         </div>
       )}
 
-      {/* ── Seksi 1: Informasi Dasar ── */}
+      {/* ── Seksi 1: Informasi Dasar — selalu tampil ── */}
       <div>
         <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-1">
           <span className="w-4 h-px bg-gray-300 inline-block" />
@@ -172,7 +193,7 @@ export default function CaseForm({ initialData, onSubmit, onCancel, isSubmitting
         </div>
       </div>
 
-      {/* ── Seksi 2: Dokumen Permohonan ── */}
+      {/* ── Seksi 2: Dokumen Permohonan — selalu tampil ── */}
       <div>
         <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-1">
           <span className="w-4 h-px bg-gray-300 inline-block" />
@@ -207,11 +228,11 @@ export default function CaseForm({ initialData, onSubmit, onCancel, isSubmitting
         </div>
       </div>
 
-      {/* ── Seksi 3: Hasil & Tindak Lanjut ── */}
+      {/* ── Seksi 3: Hasil & Produk Hukum — selalu tampil ── */}
       <div>
         <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-1">
           <span className="w-4 h-px bg-gray-300 inline-block" />
-          Hasil & Tindak Lanjut
+          Hasil & Produk Hukum
         </h3>
         <div className="space-y-3">
           <FormField label="Hasil Penelitian">
@@ -230,33 +251,72 @@ export default function CaseForm({ initialData, onSubmit, onCancel, isSubmitting
           <FormField label="Tanggal Produk Hukum">
             <input {...register('tanggalProdukHukum')} type="date" className="form-input" />
           </FormField>
+
+          {/* Nominal Restitusi — selalu tampil */}
+          <CurrencyField
+            name="nominalRestitusi"
+            label="Nominal Restitusi (Rp)"
+            placeholder="Contoh: 150000000"
+            hint="Masukkan nominal dalam Rupiah tanpa titik/koma (opsional)"
+            defaultValue={initialData?.nominalRestitusi}
+            setValue={setValue}
+          />
         </div>
       </div>
 
-      {/* ── Seksi 4: SKPKPP & SPMKP ── */}
-      <div>
-        <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-1">
-          <span className="w-4 h-px bg-gray-300 inline-block" />
-          SKPKPP & SPMKP
-        </h3>
-        <div className="space-y-3">
-          <FormField label="Nomor SKPKPP">
-            <input {...register('nomorSKPKPP')} type="text" placeholder="KEP-00000/..." className="form-input" />
-          </FormField>
-
-          <FormField label="Tanggal SKPKPP">
-            <input {...register('tanggalSKPKPP')} type="date" className="form-input" />
-          </FormField>
-
-          <FormField label="Nomor SPMKP">
-            <input {...register('nomorSPMKP')} type="text" placeholder="SPMKP-0000/2026" className="form-input" />
-          </FormField>
-
-          <FormField label="Tanggal SPMKP">
-            <input {...register('tanggalSPMKP')} type="date" className="form-input" />
-          </FormField>
+      {/* ── Seksi 4: SKPKPP — hanya tampil jika bukan SKB ── */}
+      {showSKPKPP && (
+        <div>
+          <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-1">
+            <span className="w-4 h-px bg-gray-300 inline-block" />
+            SKPKPP
+          </h3>
+          <div className="space-y-3">
+            <FormField label="Nomor SKPKPP">
+              <input {...register('nomorSKPKPP')} type="text" placeholder="KEP-00000/..." className="form-input" />
+            </FormField>
+            <FormField label="Tanggal SKPKPP">
+              <input {...register('tanggalSKPKPP')} type="date" className="form-input" />
+            </FormField>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* ── Seksi 5: SPMKP — hanya tampil jika bukan SKB ── */}
+      {showSPMKP && canViewSPMKP && (
+        <div>
+          <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-1">
+            <span className="w-4 h-px bg-gray-300 inline-block" />
+            SPMKP
+          </h3>
+          <div className="space-y-3">
+            {/* Info hint untuk penyuluh */}
+            {spmkpReadOnly && (
+              <div className="flex items-center gap-2 text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <span>ℹ️</span>
+                <span>Input SPMKP hanya dapat dilakukan oleh Pelaksana.</span>
+              </div>
+            )}
+            <FormField label="Nomor SPMKP">
+              <input
+                {...register('nomorSPMKP')}
+                type="text"
+                placeholder="SPMKP-0001/2026"
+                readOnly={spmkpReadOnly}
+                className={`form-input ${spmkpReadOnly ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}`}
+              />
+            </FormField>
+            <FormField label="Tanggal SPMKP">
+              <input
+                {...register('tanggalSPMKP')}
+                type="date"
+                readOnly={spmkpReadOnly}
+                className={`form-input ${spmkpReadOnly ? 'bg-gray-50 text-gray-400 cursor-not-allowed' : ''}`}
+              />
+            </FormField>
+          </div>
+        </div>
+      )}
 
       {/* ── Footer Buttons ── */}
       <div className="flex gap-3 pt-2 border-t border-gray-100">
