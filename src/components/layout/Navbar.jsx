@@ -12,11 +12,10 @@ const NAV_ITEMS = {
     { to: '/laporan',    label: 'Laporan',          icon: BarChart2      },
   ],
   pelaksana: [
-    { to: '/monitoring', label: 'Monitoring',    icon: Shield         },
-    { to: '/dashboard',  label: 'Dashboard',     icon: LayoutDashboard},
-    { to: '/upload',     label: 'Upload Data',   icon: Upload         },
-    { to: '/laporan',    label: 'Laporan',        icon: BarChart2      },
-    { to: '/audit-log',  label: 'Audit Log',      icon: ScrollText     },
+    { to: '/monitoring', label: 'Monitoring',  icon: Shield         },
+    { to: '/dashboard',  label: 'Dashboard',   icon: LayoutDashboard},
+    { to: '/upload',     label: 'Upload Data', icon: Upload         },
+    { to: '/laporan',    label: 'Laporan',      icon: BarChart2      },
   ],
   'kepala-seksi': [
     { to: '/dashboard-kasi', label: 'Dashboard Kasi', icon: LayoutDashboard },
