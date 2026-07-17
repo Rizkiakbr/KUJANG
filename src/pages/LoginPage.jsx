@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, Shield, AlertTriangle } from 'lucide-react';
 import { loginWithNIP } from '../services/authService';
 import { useAuthStore } from '../store/authStore';
-import { seedDemoData } from '../services/seedService';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -35,10 +34,10 @@ export default function LoginPage() {
       navigate(redirectMap[userData.role] || '/dashboard', { replace: true });
     } catch (err) {
       const msgMap = {
-        'auth/user-not-found':  'NIP tidak terdaftar di sistem.',
-        'auth/wrong-password':  'Kata sandi salah.',
-        'auth/invalid-email':   'Format NIP tidak valid.',
-        'auth/too-many-requests': 'Terlalu banyak percobaan. Coba lagi nanti.',
+        'auth/user-not-found':     'NIP tidak terdaftar di sistem.',
+        'auth/wrong-password':     'Kata sandi salah.',
+        'auth/invalid-email':      'Format NIP tidak valid.',
+        'auth/too-many-requests':  'Terlalu banyak percobaan. Coba lagi nanti.',
         'auth/invalid-credential': 'NIP atau kata sandi salah.',
       };
       setError(msgMap[err.code] || err.message || 'Login gagal. Periksa kembali NIP dan kata sandi.');
@@ -52,44 +51,49 @@ export default function LoginPage() {
 
       {/* ── Panel Kiri ── */}
       <div
-        className="hidden lg:flex w-[42%] flex-col items-center justify-center relative overflow-hidden"
+        className="hidden lg:flex w-[42%] flex-col items-center justify-between py-10 px-8 relative overflow-hidden"
         style={{ background: '#0D2E5C' }}
       >
-        {/* Foto gedung */}
-        <div
-          className="absolute inset-0 bg-center bg-cover"
-          style={{ backgroundImage: "url('/gedung-kpp.webp')", opacity: 0.12 }}
+        {/* Foto gedung sebagai background */}
+        <img
+          src="/gedung-kpp.webp"
+          alt="Gedung KPP Madya Bandung"
+          className="absolute inset-0 w-full h-full object-cover object-center"
+          style={{ opacity: 0.12 }}
         />
-        {/* Gradient overlay */}
+
+        {/* Overlay gradient gelap agar teks tetap terbaca */}
         <div
           className="absolute inset-0"
-          style={{ background: 'linear-gradient(180deg, rgba(8,29,58,0.8) 0%, rgba(13,46,92,0.95) 100%)' }}
+          style={{
+            background: 'linear-gradient(135deg, rgba(9,33,63,0.97) 0%, rgba(13,46,92,0.92) 100%)'
+          }}
         />
 
-        <div className="relative z-10 flex flex-col items-center text-center px-10">
-          {/* Logo */}
-          <div className="w-32 h-32 rounded-2xl border-2 border-white/20 bg-white/10 backdrop-blur-sm
-                          flex items-center justify-center mb-6 shadow-2xl overflow-hidden">
-            <img
-              src="/logo-kujang.png"
-              alt="Logo KUJANG"
-              className="w-full h-full object-cover"
-              onError={e => {
-                e.target.style.display = 'none';
-                e.target.parentElement.innerHTML =
-                  '<span style="font-size:48px;font-weight:900;color:white;letter-spacing:-2px">KJ</span>';
-              }}
-            />
-          </div>
+        {/* Konten utama panel kiri */}
+        <div className="relative z-10 flex flex-col items-center text-center gap-4 flex-1 justify-center">
+
+          {/* Logo — langsung tanpa container/background kotak */}
+          <img
+            src="/logo-kujang.jpeg"
+            alt="Logo KUJANG"
+            className="w-36 h-36 object-contain drop-shadow-2xl"
+            style={{ filter: 'drop-shadow(0 4px 16px rgba(0,0,0,0.5))' }}
+            onError={e => {
+              e.target.style.display = 'none';
+            }}
+          />
 
           {/* Brand */}
-          <h1 className="text-white font-black text-3xl tracking-[3px] mb-2">KUJANG</h1>
-          <p className="text-blue-200 text-sm leading-relaxed max-w-xs mb-6">
-            Kendali Utama Jatuh Tempo &<br />Antisipasi Gagal-waktu
-          </p>
+          <div>
+            <h1 className="text-white font-black text-3xl tracking-[3px] mb-2">KUJANG</h1>
+            <p className="text-blue-200 text-sm leading-relaxed max-w-xs">
+              Kendali Utama Jatuh Tempo &<br />Antisipasi Gagal-waktu
+            </p>
+          </div>
 
           {/* Divider */}
-          <div className="w-16 h-0.5 mb-6" style={{ background: '#1D9E75' }} />
+          <div className="w-16 h-0.5" style={{ background: '#1D9E75' }} />
 
           {/* Instansi */}
           <div className="text-blue-300 text-xs space-y-1">
@@ -99,15 +103,17 @@ export default function LoginPage() {
           </div>
 
           {/* Badge Zona Integritas */}
-          <div className="mt-6 flex items-center gap-2 bg-teal/15 border border-teal/30 rounded-full px-4 py-2">
+          <div className="flex items-center gap-2 bg-teal/15 border border-teal/30 rounded-full px-4 py-2">
             <Shield size={13} className="text-teal-light" />
-            <span className="text-[11px] font-bold text-teal-light tracking-wide">Zona Integritas · WBK & WBBM</span>
+            <span className="text-[11px] font-bold text-teal-light tracking-wide">
+              Zona Integritas · WBK &amp; WBBM
+            </span>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="absolute bottom-5 text-[11px] text-blue-400/60 z-10">
-          © 2026 DJP — Sistem Internal
+        {/* Footer panel kiri */}
+        <div className="relative z-10 text-center">
+          <p className="text-xs text-blue-400/60">© 2026 DJP — Sistem Internal</p>
         </div>
       </div>
 
@@ -117,8 +123,12 @@ export default function LoginPage() {
 
           {/* Mobile logo */}
           <div className="flex lg:hidden items-center gap-3 mb-8">
-            <img src="/logo-kujang.png" alt="KUJANG" className="w-10 h-10 rounded-lg object-cover"
-                 onError={e => e.target.style.display='none'} />
+            <img
+              src="/logo-kujang.jpeg"
+              alt="KUJANG"
+              className="w-10 h-10 rounded-lg object-cover"
+              onError={e => e.target.style.display = 'none'}
+            />
             <div>
               <p className="font-black text-navy tracking-widest text-sm">KUJANG</p>
               <p className="text-[10px] text-gray-400">KPP Madya Bandung</p>
@@ -223,33 +233,6 @@ export default function LoginPage() {
             <p className="text-[11px] text-yellow-800">
               Sistem ini hanya untuk pegawai KPP Madya Bandung yang berwenang. Akses tidak sah merupakan pelanggaran.
             </p>
-          </div>
-
-          {/* Seed Button */}
-          <div className="mt-4 border border-dashed border-teal-200 bg-teal-50/50 rounded-lg p-3 text-center">
-            <p className="text-[11px] text-teal-800 mb-2">
-              Belum ada akun demo? Klik tombol di bawah untuk inisialisasi akun & data demo ke Firebase.
-            </p>
-            <button
-              type="button"
-              id="btn-seed"
-              onClick={async () => {
-                setLoading(true);
-                setError('');
-                try {
-                  const res = await seedDemoData();
-                  alert(`Inisialisasi Berhasil!\nUser dibuat: ${res.usersCreated}\nKasus dibuat: ${res.casesCreated}`);
-                } catch (err) {
-                  setError(`Gagal seed: ${err.message}`);
-                } finally {
-                  setLoading(false);
-                }
-              }}
-              disabled={loading}
-              className="w-full bg-teal text-white font-semibold text-xs py-2 rounded-lg hover:bg-teal-dark transition-all"
-            >
-              Inisialisasi Data Demo
-            </button>
           </div>
 
           {/* Footer */}

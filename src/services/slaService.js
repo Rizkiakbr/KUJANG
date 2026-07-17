@@ -54,18 +54,26 @@ export function calcJatuhTempo(tanggalLPAD, jenisLayananId) {
 
 /**
  * Hitung status SLA dari jatuh tempo
+ *
+ * LOGIKA:
+ * - Kasus sudah selesai (ada tanggalSPMKP/SKPKPP/ProdukHukum):
+ *     → bandingkan tanggal penyelesaian vs jatuh tempo
+ *     → COMPLETED_ONTIME jika selesai tepat/sebelum jatuh tempo
+ *     → COMPLETED_LATE   jika selesai sesudah jatuh tempo
+ * - Kasus belum selesai:
+ *     → bandingkan hari ini vs jatuh tempo
+ *     → OVERDUE / WARNING / SAFE (perilaku lama)
+ *
  * @param {Date|string|object} jatuhTempo  — Date, string ISO, atau Firestore Timestamp
  * @param {string} jenisLayananId
- * @returns {{ code: 'OVERDUE'|'WARNING'|'SAFE', sisaHari: number, label: string }}
+ * @param {object|null} caseData          — objek kasus lengkap, opsional
+ * @returns {{ code: string, sisaHari: number, label: string, completedDate?: Date }}
  */
-export function calcSLAStatus(jatuhTempo, jenisLayananId) {
+export function calcSLAStatus(jatuhTempo, jenisLayananId, caseData = null) {
   const config = slaConfig.jenisLayanan.find(j => j.id === jenisLayananId);
   if (!config) return { code: 'SAFE', sisaHari: 999, label: '-' };
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  // Handle Firestore Timestamp object
+  // Handle Firestore Timestamp object untuk jatuhTempo
   let jt;
   if (jatuhTempo && typeof jatuhTempo.toDate === 'function') {
     jt = jatuhTempo.toDate();
@@ -74,13 +82,59 @@ export function calcSLAStatus(jatuhTempo, jenisLayananId) {
   }
   jt.setHours(0, 0, 0, 0);
 
-  const sisaHari = differenceInCalendarDays(jt, today);
+  // ── Tentukan tanggal referensi & cek apakah sudah selesai ──
+  let referenceDate = new Date();
+  referenceDate.setHours(0, 0, 0, 0);
+  let isCompleted = false;
+  let completedDate = null;
 
+  if (caseData) {
+    // Urutan prioritas: SPMKP (paling akhir) → SKPKPP → Produk Hukum
+    const rawDate =
+      caseData.tanggalSPMKP ||
+      caseData.tanggalSKPKPP ||
+      caseData.tanggalProdukHukum ||
+      null;
+
+    if (rawDate) {
+      // Handle Firestore Timestamp atau string/Date
+      completedDate = typeof rawDate.toDate === 'function'
+        ? rawDate.toDate()
+        : new Date(rawDate);
+      completedDate.setHours(0, 0, 0, 0);
+      referenceDate = completedDate;
+      isCompleted = true;
+    }
+  }
+
+  const sisaHari = differenceInCalendarDays(jt, referenceDate);
+
+  // ── Kasus sudah selesai ──
+  if (isCompleted) {
+    if (sisaHari >= 0) {
+      return {
+        code: 'COMPLETED_ONTIME',
+        sisaHari,
+        label: sisaHari === 0 ? 'Tepat Waktu' : `Selesai H-${sisaHari}`,
+        completedDate,
+      };
+    } else {
+      return {
+        code: 'COMPLETED_LATE',
+        sisaHari,
+        label: `Terlambat ${Math.abs(sisaHari)} hari`,
+        completedDate,
+      };
+    }
+  }
+
+  // ── Kasus belum selesai — bandingkan dengan hari ini ──
   if (sisaHari < 0)  return { code: 'OVERDUE', sisaHari, label: `Lewat ${Math.abs(sisaHari)} hari` };
   if (sisaHari === 0) return { code: 'OVERDUE', sisaHari, label: 'Jatuh tempo hari ini!' };
   if (sisaHari <= config.warningDays) return { code: 'WARNING', sisaHari, label: `H-${sisaHari}` };
   return { code: 'SAFE', sisaHari, label: `${sisaHari} hari` };
 }
+
 
 /**
  * Lookup config jenis layanan by id

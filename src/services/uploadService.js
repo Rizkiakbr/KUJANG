@@ -125,3 +125,86 @@ export function validateRows(rows) {
 
   return { valid, errors };
 }
+
+// Kolom wajib untuk upload oleh penyuluh — tanpa kolom 'Penyuluh'
+const REQUIRED_COLUMNS_PENYULUH = [
+  'Jenis Layanan', 'NPWP', 'Nama WP', 'Nomor Kasus Coretax', 'Tanggal LPAD',
+];
+
+/**
+ * Validasi dan transformasi rows untuk upload oleh penyuluh.
+ * Berbeda dengan validateRows:
+ *   - Kolom 'Penyuluh' TIDAK wajib ada di Excel
+ *   - penyuluhId SELALU di-override dengan penyuluhId user yang login
+ *
+ * @param {object[]} rows        - raw rows dari xlsx
+ * @param {string}   penyuluhId  - penyuluhId dari userData.penyuluhId
+ * @returns {{ valid: object[], errors: { rowIndex: number, row: object, messages: string[] }[] }}
+ */
+export function validateRowsForPenyuluh(rows, penyuluhId) {
+  const valid = [];
+  const errors = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i];
+    const rowErrors = [];
+    const mapped = {};
+
+    // Cek kolom wajib (tanpa Penyuluh)
+    for (const col of REQUIRED_COLUMNS_PENYULUH) {
+      if (!row[col] || String(row[col]).trim() === '') {
+        rowErrors.push(`Kolom "${col}" wajib diisi`);
+      }
+    }
+
+    if (rowErrors.length > 0) {
+      errors.push({ rowIndex: i + 2, row, messages: rowErrors });
+      continue;
+    }
+
+    // Map kolom yang ada (sama seperti COLUMN_MAP, tapi skip Penyuluh)
+    for (const [excelCol, fieldName] of Object.entries(COLUMN_MAP)) {
+      if (excelCol === 'Penyuluh') continue; // skip — akan diisi otomatis
+      mapped[fieldName] = row[excelCol] ?? '';
+    }
+
+    // Paksa penyuluhId dari user yang login — tidak bisa dimanipulasi
+    mapped.penyuluhId = penyuluhId;
+
+    // Resolve jenisLayananId dari nama
+    const jl = slaConfig.jenisLayanan.find(
+      j => j.nama.toLowerCase() === String(mapped.jenisLayananId).toLowerCase()
+    );
+    if (!jl) {
+      rowErrors.push(`Jenis Layanan "${mapped.jenisLayananId}" tidak dikenal`);
+    } else {
+      mapped.jenisLayananId = jl.id;
+    }
+
+    // Validasi NPWP
+    const npwp = String(mapped.npwp).replace(/\D/g, '');
+    if (npwp.length !== 16) {
+      rowErrors.push(`NPWP harus tepat 16 digit (saat ini ${npwp.length} digit)`);
+    } else {
+      mapped.npwp = npwp;
+    }
+
+    // Validasi tanggal LPAD
+    if (mapped.tanggalLPAD) {
+      const tgl = new Date(mapped.tanggalLPAD);
+      if (isNaN(tgl.getTime())) {
+        rowErrors.push(`Tanggal LPAD tidak valid: "${mapped.tanggalLPAD}"`);
+      } else {
+        mapped.tanggalLPAD = tgl;
+      }
+    }
+
+    if (rowErrors.length > 0) {
+      errors.push({ rowIndex: i + 2, row, messages: rowErrors });
+    } else {
+      valid.push(mapped);
+    }
+  }
+
+  return { valid, errors };
+}

@@ -1,25 +1,33 @@
 /**
  * Badge SLA status
- * @param {{ code: 'OVERDUE'|'WARNING'|'SAFE', label: string, size?: 'sm'|'md' }} props
+ * @param {{ code: 'OVERDUE'|'WARNING'|'SAFE'|'COMPLETED_ONTIME'|'COMPLETED_LATE', label: string, size?: 'sm'|'md' }} props
  */
 export function SLABadge({ code, label, size = 'md' }) {
   const classMap = {
-    OVERDUE: 'badge-overdue',
-    WARNING: 'badge-warning',
-    SAFE:    'badge-safe',
+    OVERDUE:          'badge-overdue',
+    WARNING:          'badge-warning',
+    SAFE:             'badge-safe',
+    COMPLETED_ONTIME: 'badge-completed-ontime',
+    COMPLETED_LATE:   'badge-completed-late',
+  };
+  const iconMap = {
+    OVERDUE:          '🚨',
+    WARNING:          '⚠️',
+    SAFE:             '✅',
+    COMPLETED_ONTIME: '✓',
+    COMPLETED_LATE:   '⚠',
   };
   const cls = classMap[code] || 'badge-safe';
   const px  = size === 'sm' ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-xs';
 
   return (
     <span className={`${cls} ${px} inline-flex items-center gap-1 whitespace-nowrap`}>
-      {code === 'OVERDUE' && '🚨'}
-      {code === 'WARNING' && '⚠️'}
-      {code === 'SAFE'    && '✅'}
+      {iconMap[code] || ''}
       {label}
     </span>
   );
 }
+
 
 /**
  * Badge role user

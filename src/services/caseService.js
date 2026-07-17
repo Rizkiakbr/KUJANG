@@ -207,3 +207,19 @@ export async function bulkCreateCases(rows, currentUser) {
   }
   return results;
 }
+
+/**
+ * Bulk create kasus untuk penyuluh — penyuluhId SELALU di-force dari currentUser.
+ * Mencegah penyuluh upload kasus untuk penyuluh lain.
+ *
+ * @param {object[]} rows
+ * @param {{ uid, nama, role, penyuluhId }} currentUser
+ */
+export async function bulkCreateCasesForPenyuluh(rows, currentUser) {
+  // Override penyuluhId untuk setiap row — tidak bisa dimanipulasi
+  const safeRows = rows.map(row => ({
+    ...row,
+    penyuluhId: currentUser.penyuluhId,
+  }));
+  return bulkCreateCases(safeRows, currentUser);
+}

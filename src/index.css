@@ -59,6 +59,12 @@ body {
   .badge-safe {
     @apply bg-green-50 border border-green-200 text-green-800 font-bold text-xs px-2.5 py-1 rounded-full;
   }
+  .badge-completed-ontime {
+    @apply bg-green-100 border border-green-400 text-green-900 font-bold text-xs px-2.5 py-1 rounded-full;
+  }
+  .badge-completed-late {
+    @apply bg-orange-50 border border-orange-300 text-orange-800 font-bold text-xs px-2.5 py-1 rounded-full;
+  }
 
   /* Table row coloring */
   .row-overdue {
@@ -69,6 +75,12 @@ body {
   }
   .row-safe {
     @apply border-l-[3px] border-l-green-500;
+  }
+  .row-completed-ontime {
+    @apply bg-[#F0FDF4] border-l-[3px] border-l-green-600;
+  }
+  .row-completed-late {
+    @apply bg-[#FFF7ED] border-l-[3px] border-l-orange-400;
   }
   .row-selected {
     @apply bg-blue-50 border-l-[3px] border-l-blue-500;

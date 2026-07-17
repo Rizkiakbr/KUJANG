@@ -1,14 +1,17 @@
 import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Search, ChevronLeft, ChevronRight, Upload } from 'lucide-react';
 import Topbar from '../components/layout/Topbar';
 import Navbar from '../components/layout/Navbar';
 import { SLABadge, TahapBadge } from '../components/ui/Badge';
 import SidePanel from '../components/ui/SidePanel';
 import CaseForm from '../components/forms/CaseForm';
+import UploadPenyuluhModal from '../components/ui/UploadPenyuluhModal';
 import { useAuthStore } from '../store/authStore';
+import { useToastStore } from '../store/toastStore';
 import { useGetCases, useCreateCase, useUpdateCase } from '../hooks/useCases';
 import { useSLAStatus } from '../hooks/useSLAStatus';
+import { useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import slaConfig from '../config/slaConfig.json';
@@ -40,13 +43,17 @@ export default function TugasSayaPage() {
   const navigate  = useNavigate();
   const { userData } = useAuthStore();
 
-  const [panelOpen, setPanelOpen]   = useState(false);
-  const [panelMode, setPanelMode]   = useState('create');
-  const [selectedCase, setSelected] = useState(null);
-  const [search, setSearch]         = useState('');
+  const [panelOpen, setPanelOpen]     = useState(false);
+  const [panelMode, setPanelMode]     = useState('create');
+  const [selectedCase, setSelected]   = useState(null);
+  const [search, setSearch]           = useState('');
   const [filterJenis, setFilterJenis] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
-  const [page, setPage]             = useState(1);
+  const [page, setPage]               = useState(1);
+  const [showUpload, setShowUpload]   = useState(false);
+
+  const addToast     = useToastStore(s => s.addToast);
+  const queryClient  = useQueryClient();
 
   const penyuluhId = userData?.penyuluhId;
   const { data: rawCases = [], isLoading } = useGetCases(penyuluhId ? { penyuluhId } : {});
@@ -80,12 +87,18 @@ export default function TugasSayaPage() {
   const openEdit   = (kasus) => { setPanelMode('edit'); setSelected(kasus); setPanelOpen(true); };
 
   const handleSubmit = async (data) => {
-    if (panelMode === 'create') {
-      await createMutation.mutateAsync(data);
-    } else {
-      await updateMutation.mutateAsync({ id: selectedCase.id, data });
+    try {
+      if (panelMode === 'create') {
+        await createMutation.mutateAsync(data);
+        addToast({ type: 'success', title: 'Kasus Ditambahkan', message: `${data.namaWP} berhasil disimpan` });
+      } else {
+        await updateMutation.mutateAsync({ id: selectedCase.id, data });
+        addToast({ type: 'success', title: 'Kasus Diperbarui', message: `${data.namaWP} berhasil diperbarui` });
+      }
+      setPanelOpen(false);
+    } catch (err) {
+      addToast({ type: 'danger', title: 'Gagal Menyimpan', message: err.message || 'Terjadi kesalahan' });
     }
-    setPanelOpen(false);
   };
 
   const py = slaConfig.penyuluh.find(p => p.id === penyuluhId);
@@ -128,10 +141,19 @@ export default function TugasSayaPage() {
             </span>
           </div>
 
-          {/* Tambah kasus */}
-          <button id="btn-tambah-kasus" onClick={openCreate} className="btn-primary flex items-center gap-1.5 text-xs">
-            <Plus size={13} /> Tambah Kasus
-          </button>
+          {/* Tambah kasus + Upload Excel */}
+          <div className="flex items-center gap-2">
+            <button
+              id="btn-upload-excel"
+              onClick={() => setShowUpload(true)}
+              className="btn-outline flex items-center gap-1.5 text-xs"
+            >
+              <Upload size={13} /> Upload Excel
+            </button>
+            <button id="btn-tambah-kasus" onClick={openCreate} className="btn-primary flex items-center gap-1.5 text-xs">
+              <Plus size={13} /> Tambah Kasus
+            </button>
+          </div>
         </div>
 
         {/* Filter Bar */}
@@ -162,12 +184,14 @@ export default function TugasSayaPage() {
             </select>
 
             {/* Status filter pills */}
-            <div className="flex gap-1.5">
+            <div className="flex gap-1.5 flex-wrap">
               {[
-                { val: '',         label: 'Semua',   cls: 'bg-gray-100 text-gray-600' },
-                { val: 'OVERDUE',  label: '🔴 Kritis', cls: 'bg-red-50 text-red-700 border border-red-200' },
-                { val: 'WARNING',  label: '🟡 Warning', cls: 'bg-yellow-50 text-yellow-700 border border-yellow-200' },
-                { val: 'SAFE',     label: '🟢 Aman',   cls: 'bg-green-50 text-green-700 border border-green-200' },
+                { val: '',                 label: 'Semua',        cls: 'bg-gray-100 text-gray-600' },
+                { val: 'OVERDUE',          label: '🔴 Kritis',    cls: 'bg-red-50 text-red-700 border border-red-200' },
+                { val: 'WARNING',          label: '🟡 Warning',   cls: 'bg-yellow-50 text-yellow-700 border border-yellow-200' },
+                { val: 'SAFE',             label: '🟢 Aman',      cls: 'bg-green-50 text-green-700 border border-green-200' },
+                { val: 'COMPLETED_ONTIME', label: '✓ Tepat Waktu', cls: 'bg-green-100 text-green-900 border border-green-400' },
+                { val: 'COMPLETED_LATE',   label: '⚠ Terlambat',  cls: 'bg-orange-50 text-orange-700 border border-orange-300' },
               ].map(opt => (
                 <button
                   key={opt.val}
@@ -217,7 +241,12 @@ export default function TugasSayaPage() {
                   paged.map((kasus, idx) => {
                     const jl   = slaConfig.jenisLayanan.find(j => j.id === kasus.jenisLayananId);
                     const code = kasus.slaStatus?.code;
-                    const rowCls = code === 'OVERDUE' ? 'row-overdue' : code === 'WARNING' ? 'row-warning' : 'row-safe';
+                    const rowCls =
+                      code === 'OVERDUE'          ? 'row-overdue' :
+                      code === 'WARNING'          ? 'row-warning' :
+                      code === 'COMPLETED_ONTIME' ? 'row-completed-ontime' :
+                      code === 'COMPLETED_LATE'   ? 'row-completed-late' :
+                      'row-safe';
 
                     return (
                       <tr
@@ -321,6 +350,17 @@ export default function TugasSayaPage() {
           currentSLAStatus={selectedCase?.slaStatus}
         />
       </SidePanel>
+
+      {/* Upload Excel Modal */}
+      {showUpload && (
+        <UploadPenyuluhModal
+          onClose={() => setShowUpload(false)}
+          onSuccess={() => {
+            setShowUpload(false);
+            queryClient.invalidateQueries({ queryKey: ['cases'] });
+          }}
+        />
+      )}
     </div>
   );
 }

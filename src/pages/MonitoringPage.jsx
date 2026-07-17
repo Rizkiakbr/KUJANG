@@ -150,6 +150,8 @@ export default function MonitoringPage() {
               <option value="OVERDUE">🔴 Lewat Tempo</option>
               <option value="WARNING">🟡 Warning</option>
               <option value="SAFE">🟢 Aman</option>
+              <option value="COMPLETED_ONTIME">✓ Tepat Waktu</option>
+              <option value="COMPLETED_LATE">⚠ Selesai Terlambat</option>
             </select>
             <span className="text-xs text-gray-400 ml-auto">{filtered.length} kasus</span>
           </div>
@@ -177,7 +179,12 @@ export default function MonitoringPage() {
                   const jl   = slaConfig.jenisLayanan.find(j => j.id === k.jenisLayananId);
                   const py   = slaConfig.penyuluh.find(p => p.id === k.penyuluhId);
                   const code = k.slaStatus?.code;
-                  const rowCls = code === 'OVERDUE' ? 'row-overdue' : code === 'WARNING' ? 'row-warning' : 'row-safe';
+                  const rowCls =
+                    code === 'OVERDUE'          ? 'row-overdue' :
+                    code === 'WARNING'          ? 'row-warning' :
+                    code === 'COMPLETED_ONTIME' ? 'row-completed-ontime' :
+                    code === 'COMPLETED_LATE'   ? 'row-completed-late' :
+                    'row-safe';
 
                   return (
                     <tr key={k.id} className={`${rowCls} border-b border-gray-50 hover:bg-gray-50 cursor-pointer`}
