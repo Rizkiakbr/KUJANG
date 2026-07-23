@@ -1,53 +1,72 @@
 import slaConfig from '../config/slaConfig.json';
 import {
-  endOfMonth,
   addMonths,
   addDays,
-  isWeekend,
+  subDays,
   differenceInCalendarDays,
 } from 'date-fns';
+import { isNonWorkday } from './holidayService';
 
 /**
- * Tambah N hari kerja (skip Sabtu & Minggu) dari tanggal mulai
+ * Tambah N hari kerja (skip Sabtu, Minggu & libur nasional) dari tanggal mulai
  * @param {Date|string} startDate
  * @param {number} n
+ * @param {Array} holidays - array dari holidayService.getHolidays() (opsional)
  * @returns {Date}
  */
-export function addWorkdays(startDate, n) {
+export function addWorkdays(startDate, n, holidays = []) {
   let date = new Date(startDate);
   let count = 0;
   while (count < n) {
     date = addDays(date, 1);
-    if (!isWeekend(date)) count++;
+    if (!isNonWorkday(date, holidays)) count++;
   }
   return date;
 }
 
 /**
- * Hitung hari terakhir bulan ke-N setelah tanggal LPAD
- * Contoh: LPAD 15 Jan → n=1 → akhir Februari
- * @param {Date|string} startDate
- * @param {number} n
- * @returns {Date}
+ * Hitung jatuh tempo bulan kalender
+ * Logika: (tanggal BPE - 1 hari) + N bulan
+ * Jika hasil jatuh di weekend atau libur nasional → mundur ke hari kerja terakhir
+ *
+ * Contoh:
+ *   BPE 20 Jul 2026 + 1 bln → base 19 Jul → +1 bln = 19 Agu (Rabu) ✅
+ *   BPE 31 Jul 2026 + 1 bln → base 30 Jul → +1 bln = 30 Agu (Min) → 28 Agu (Jum) ✅
+ *   BPE  1 Jul 2026 + 1 bln → base 30 Jun → +1 bln = 30 Jul (Kam) ✅
+ *
+ * @param {Date|string} startDate - Tanggal BPE/LPAD
+ * @param {number} months         - Jumlah bulan (1 atau 3)
+ * @param {Array}  holidays       - array dari holidayService.getHolidays() (opsional)
+ * @returns {Date} Tanggal jatuh tempo
  */
-export function addCalendarMonths(startDate, n) {
-  return endOfMonth(addMonths(new Date(startDate), n));
+export function addCalendarMonths(startDate, months, holidays = []) {
+  // Kurangi 1 hari dari tanggal BPE, lalu tambah N bulan
+  const base = subDays(new Date(startDate), 1);
+  let result = addMonths(base, months);
+
+  // Mundur selama jatuh di weekend atau libur nasional
+  while (isNonWorkday(result, holidays)) {
+    result = subDays(result, 1);
+  }
+
+  return result;
 }
 
 /**
  * Hitung tanggal jatuh tempo berdasarkan jenisLayananId & tanggalLPAD
  * @param {Date|string} tanggalLPAD
  * @param {string} jenisLayananId
+ * @param {Array} holidays - opsional, default [] (fallback ke skip weekend saja)
  * @returns {Date} jatuhTempo
  */
-export function calcJatuhTempo(tanggalLPAD, jenisLayananId) {
+export function calcJatuhTempo(tanggalLPAD, jenisLayananId, holidays = []) {
   const config = slaConfig.jenisLayanan.find(j => j.id === jenisLayananId);
   if (!config) throw new Error(`Jenis layanan tidak ditemukan: ${jenisLayananId}`);
   if (config.slaType === 'workdays') {
-    return addWorkdays(tanggalLPAD, config.slaDays);
+    return addWorkdays(tanggalLPAD, config.slaDays, holidays);
   }
   if (config.slaType === 'calendar_month') {
-    return addCalendarMonths(tanggalLPAD, config.slaMonths);
+    return addCalendarMonths(tanggalLPAD, config.slaMonths, holidays);
   }
   throw new Error(`slaType tidak dikenal: ${config.slaType}`);
 }

@@ -19,6 +19,7 @@ import LaporanPage            from './pages/LaporanPage';
 import AuditLogPage           from './pages/AuditLogPage';
 import DashboardKetuaPage     from './pages/DashboardKetuaPage';
 import DashboardKasiPage      from './pages/DashboardKasiPage';
+import KalenderLiburPage      from './pages/KalenderLiburPage';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -133,6 +134,13 @@ export default function App() {
             <Route path="/dashboard-ketua" element={
               <ProtectedRoute allowedRoles={['ketuakpp']}>
                 <DashboardKetuaPage />
+              </ProtectedRoute>
+            } />
+
+            {/* Kepala Seksi + Pelaksana */}
+            <Route path="/kalender-libur" element={
+              <ProtectedRoute allowedRoles={['kepala-seksi', 'pelaksana']}>
+                <KalenderLiburPage />
               </ProtectedRoute>
             } />
 

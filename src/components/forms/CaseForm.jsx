@@ -1,7 +1,7 @@
-import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { Save, Info } from 'lucide-react';
@@ -10,6 +10,7 @@ import { calcJatuhTempo } from '../../services/slaService';
 import { useAuthStore } from '../../store/authStore';
 import { SLABadge } from '../ui/Badge';
 import CurrencyField from './CurrencyField';
+import { useHolidays } from '../../hooks/useCases';
 
 /* ── Zod Schema ── */
 const caseSchema = z.object({
@@ -18,7 +19,14 @@ const caseSchema = z.object({
   hasilPenelitian:    z.string().optional(),
   namaWP:             z.string().min(3, 'Minimal 3 karakter'),
   nomorKasusCoretax:  z.string().min(1, 'Wajib diisi'),
-  nomorLPAD:          z.string().optional(),
+
+  // FIX 2: nomorLPAD sekarang WAJIB diisi
+  nomorLPAD: z.string()
+               .min(1, 'Nomor BPE/LPAD wajib diisi sebelum menyimpan kasus')
+               .refine(val => val.trim().length > 0, {
+                 message: 'Nomor BPE/LPAD tidak boleh kosong atau hanya spasi',
+               }),
+
   nomorProdukHukum:   z.string().optional(),
   nomorSKPKPP:        z.string().optional(),
   nomorSPMKP:         z.string().optional(),
@@ -26,7 +34,9 @@ const caseSchema = z.object({
   npwp: z.string()
     .length(16, 'NPWP harus tepat 16 digit')
     .regex(/^\d{16}$/, 'NPWP hanya boleh angka'),
-  tanggalLPAD:         z.string().min(1, 'Wajib diisi'),
+
+  // FIX 2: tanggalLPAD tetap wajib (sudah ada sebelumnya, label diperbarui)
+  tanggalLPAD:         z.string().min(1, 'Tanggal BPE/LPAD wajib diisi'),
   tanggalProdukHukum:  z.string().optional(),
   tanggalSKPKPP:       z.string().optional(),
   tanggalSPMKP:        z.string().optional(),
@@ -51,6 +61,9 @@ export default function CaseForm({ initialData, onSubmit, onCancel, isSubmitting
   const isEdit = !!initialData;
   const { userData } = useAuthStore();
   const role = userData?.role;
+
+  // FIX 3: Load holidays untuk tahun berjalan (backward compatible — default [] jika gagal)
+  const { data: holidays = [] } = useHolidays(new Date().getFullYear());
 
   const defaultValues = {
     jenisLayananId:     initialData?.jenisLayananId    || '',
@@ -104,10 +117,11 @@ export default function CaseForm({ initialData, onSubmit, onCancel, isSubmitting
   const canViewSPMKP  = ['penyuluh', 'pelaksana', 'kepala-seksi', 'ketuakpp'].includes(role);
   const spmkpReadOnly = role === 'penyuluh';
 
+  // FIX 3: calcJatuhTempo sekarang terima holidays
   let autoJatuhTempo = null;
   if (watchedJenis && watchedLPAD) {
     try {
-      autoJatuhTempo = calcJatuhTempo(new Date(watchedLPAD), watchedJenis);
+      autoJatuhTempo = calcJatuhTempo(new Date(watchedLPAD), watchedJenis, holidays);
     } catch (_) {}
   }
 
@@ -200,18 +214,47 @@ export default function CaseForm({ initialData, onSubmit, onCancel, isSubmitting
           Dokumen Permohonan
         </h3>
         <div className="space-y-3">
-          <FormField label="No. LPAD / SKPLB / PLB" error={errors.nomorLPAD?.message}>
-            <input {...register('nomorLPAD')} type="text" placeholder="BPE-00000/CT/KPP.0911/2026" className="form-input" />
+
+          {/* FIX 2: Label diperbarui + tanda * wajib */}
+          <FormField
+            label={
+              <span>
+                No. BPE / LPAD / SKPLB / PLB{' '}
+                <span className="text-red-500">*</span>
+              </span>
+            }
+            error={errors.nomorLPAD?.message}
+          >
+            <input
+              {...register('nomorLPAD')}
+              type="text"
+              placeholder="Contoh: BPE-00001/CT/KPP.0911/2026"
+              required
+              className={`form-input ${errors.nomorLPAD ? 'form-input-error' : ''}`}
+            />
           </FormField>
 
-          <FormField label="Tanggal LPAD *" error={errors.tanggalLPAD?.message}>
-            <input {...register('tanggalLPAD')} type="date" className={`form-input ${errors.tanggalLPAD ? 'form-input-error' : ''}`} />
+          {/* FIX 2: Label Tanggal diperbarui */}
+          <FormField
+            label={
+              <span>
+                Tanggal BPE / LPAD{' '}
+                <span className="text-red-500">*</span>
+              </span>
+            }
+            error={errors.tanggalLPAD?.message}
+          >
+            <input
+              {...register('tanggalLPAD')}
+              type="date"
+              className={`form-input ${errors.tanggalLPAD ? 'form-input-error' : ''}`}
+            />
           </FormField>
 
           {/* Jatuh Tempo — READ ONLY auto-calculated */}
           <div>
             <label className="form-label flex items-center gap-1">
-              Jatuh Tempo
+              Jatuh Tempo (Otomatis)
               <Info size={11} className="text-gray-400" />
             </label>
             <div className={`form-input cursor-not-allowed font-semibold
@@ -219,10 +262,13 @@ export default function CaseForm({ initialData, onSubmit, onCancel, isSubmitting
             >
               {autoJatuhTempo
                 ? format(autoJatuhTempo, 'd MMMM yyyy', { locale: idLocale })
-                : 'Pilih Jenis Layanan + Tanggal LPAD'}
+                : 'Pilih Jenis Layanan + Tanggal BPE/LPAD'}
             </div>
+            {/* FIX 2: Hint dinamis berdasarkan kondisi field */}
             <p className="text-[10px] text-gray-400 mt-1">
-              Dihitung otomatis dari Jenis Layanan + Tanggal LPAD
+              {watchedLPAD && watchedJenis
+                ? '✓ Dihitung otomatis dari Jenis Layanan + Tanggal BPE'
+                : '⚠ Isi Jenis Layanan dan Tanggal BPE terlebih dahulu'}
             </p>
           </div>
         </div>
@@ -232,7 +278,7 @@ export default function CaseForm({ initialData, onSubmit, onCancel, isSubmitting
       <div>
         <h3 className="text-[11px] font-bold uppercase tracking-wider text-gray-400 mb-3 flex items-center gap-1">
           <span className="w-4 h-px bg-gray-300 inline-block" />
-          Hasil & Produk Hukum
+          Hasil &amp; Produk Hukum
         </h3>
         <div className="space-y-3">
           <FormField label="Hasil Penelitian">

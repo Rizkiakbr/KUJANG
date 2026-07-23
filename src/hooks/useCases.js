@@ -1,12 +1,28 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getCases, getCaseById, createCase, updateCase, deleteCase } from '../services/caseService';
+import { getHolidays } from '../services/holidayService';
 import { useAuthStore } from '../store/authStore';
 
 /** Query keys */
 export const QUERY_KEYS = {
-  cases:  (filters) => ['cases', filters],
-  case:   (id)      => ['case', id],
+  cases:    (filters) => ['cases', filters],
+  case:     (id)      => ['case', id],
+  holidays: (year)    => ['holidays', year],
 };
+
+/**
+ * Ambil daftar libur nasional dari Firestore untuk tahun tertentu.
+ * Data di-cache 1 jam agar tidak terlalu sering hit Firestore.
+ *
+ * @param {number} year - default tahun berjalan
+ */
+export function useHolidays(year = new Date().getFullYear()) {
+  return useQuery({
+    queryKey: QUERY_KEYS.holidays(year),
+    queryFn:  () => getHolidays(year),
+    staleTime: 1000 * 60 * 60, // cache 1 jam
+  });
+}
 
 /**
  * Ambil daftar kasus

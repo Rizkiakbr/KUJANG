@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import {
   LayoutDashboard, ClipboardList, FileText,
-  BarChart2, Upload, ScrollText, Shield, Users
+  BarChart2, Upload, ScrollText, Shield, Users, CalendarDays
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 
@@ -12,16 +12,18 @@ const NAV_ITEMS = {
     { to: '/laporan',    label: 'Laporan',          icon: BarChart2      },
   ],
   pelaksana: [
-    { to: '/monitoring', label: 'Monitoring',  icon: Shield         },
-    { to: '/dashboard',  label: 'Dashboard',   icon: LayoutDashboard},
-    { to: '/upload',     label: 'Upload Data', icon: Upload         },
-    { to: '/laporan',    label: 'Laporan',      icon: BarChart2      },
+    { to: '/monitoring',      label: 'Monitoring',      icon: Shield         },
+    { to: '/dashboard',       label: 'Dashboard',       icon: LayoutDashboard},
+    { to: '/upload',          label: 'Upload Data',     icon: Upload         },
+    { to: '/laporan',         label: 'Laporan',          icon: BarChart2      },
+    { to: '/kalender-libur',  label: 'Kalender Libur',  icon: CalendarDays   },
   ],
   'kepala-seksi': [
-    { to: '/dashboard-kasi', label: 'Dashboard Kasi', icon: LayoutDashboard },
-    { to: '/monitoring',     label: 'Monitoring',      icon: Shield          },
-    { to: '/laporan',        label: 'Laporan',          icon: BarChart2       },
-    { to: '/audit-log',      label: 'Audit Log',        icon: ScrollText      },
+    { to: '/dashboard-kasi',  label: 'Dashboard Kasi',  icon: LayoutDashboard },
+    { to: '/monitoring',      label: 'Monitoring',       icon: Shield          },
+    { to: '/laporan',         label: 'Laporan',           icon: BarChart2       },
+    { to: '/audit-log',       label: 'Audit Log',         icon: ScrollText      },
+    { to: '/kalender-libur',  label: 'Kalender Libur',   icon: CalendarDays    },
   ],
   ketuakpp: [
     { to: '/dashboard-ketua', label: 'Dashboard Ketua', icon: LayoutDashboard },
