@@ -154,6 +154,122 @@ export function calcSLAStatus(jatuhTempo, jenisLayananId, caseData = null) {
   return { code: 'SAFE', sisaHari, label: `${sisaHari} hari` };
 }
 
+/**
+ * Hitung semua jatuh tempo untuk kasus multi-JT (No.1-4)
+ * SKB (No.5) tidak menggunakan fungsi ini
+ *
+ * @param {Object} caseData        - Data kasus lengkap (tanggal bisa Firestore Timestamp atau string)
+ * @param {string} jenisLayananId
+ * @param {Array}  holidays        - Daftar libur nasional
+ * @returns {Array|null}           - Array JT atau null jika bukan multi-JT
+ */
+export function calcMultiJatuhTempo(caseData, jenisLayananId, holidays = []) {
+  const config = slaConfig.jenisLayanan.find(j => j.id === jenisLayananId);
+  if (!config?.multiJatuhTempo) return null;
+
+  return config.jatuhTempoConfig.map(jtConfig => {
+    const rawStart = caseData[jtConfig.mulaiDari];
+
+    // Normalise Firestore Timestamp / string / null
+    const startDate = rawStart
+      ? (typeof rawStart.toDate === 'function' ? rawStart.toDate() : new Date(rawStart))
+      : null;
+
+    // Jika tanggal mulai belum diisi → JT belum bisa dihitung
+    if (!startDate) {
+      return {
+        tahap:      jtConfig.tahap,
+        label:      jtConfig.label,
+        labelMulai: jtConfig.labelMulai,
+        mulaiDari:  jtConfig.mulaiDari,
+        jatuhTempo: null,
+        status:     null,
+      };
+    }
+
+    const jatuhTempo = addCalendarMonths(startDate, jtConfig.slaMonths, holidays);
+
+    // Buat snapshot caseData yang hanya menyertakan tanggal penyelesaian
+    // yang relevan untuk tahap ini — agar calcSLAStatus tahu apakah tahap ini sudah selesai
+    const snapshotData = { ...caseData };
+    if (jtConfig.tahap !== 'Produk Hukum') snapshotData.tanggalProdukHukum = null;
+    if (jtConfig.tahap !== 'SKPKPP')       snapshotData.tanggalSKPKPP = null;
+    if (jtConfig.tahap !== 'SPMKP')        snapshotData.tanggalSPMKP = null;
+
+    const status = calcSLAStatus(jatuhTempo, jenisLayananId, snapshotData);
+
+    return {
+      tahap:      jtConfig.tahap,
+      label:      jtConfig.label,
+      labelMulai: jtConfig.labelMulai,
+      mulaiDari:  jtConfig.mulaiDari,
+      jatuhTempo,
+      status,
+    };
+  });
+}
+
+/**
+ * Ambil status paling kritis dari array multi JT
+ * Urutan prioritas: OVERDUE > WARNING > COMPLETED_LATE > SAFE > COMPLETED_ONTIME
+ *
+ * @param {Array} multiJT
+ * @returns {object|null}
+ */
+export function getStatusTerkritis(multiJT) {
+  if (!multiJT) return null;
+  const aktif = multiJT.filter(jt => jt.status !== null);
+  if (aktif.length === 0) return null;
+
+  const prioritas = {
+    OVERDUE: 1, WARNING: 2, COMPLETED_LATE: 3,
+    SAFE: 4, COMPLETED_ONTIME: 5,
+  };
+
+  return aktif.sort(
+    (a, b) => (prioritas[a.status?.code] ?? 99) - (prioritas[b.status?.code] ?? 99)
+  )[0];
+}
+
+/**
+ * Validasi urutan tanggal dokumen berdasarkan slaConfig.validasiUrutan
+ *
+ * @param {object} formData        - Data form (tanggal sebagai string 'yyyy-MM-dd')
+ * @param {string} jenisLayananId
+ * @returns {{ valid: boolean, errors: string[] }}
+ */
+export function validateUrutan(formData, jenisLayananId) {
+  const config = slaConfig.jenisLayanan.find(j => j.id === jenisLayananId);
+  if (!config?.validasiUrutan) return { valid: true, errors: [] };
+
+  const errors = [];
+  const urutan = config.validasiUrutan;
+
+  for (let i = 0; i < urutan.length - 1; i++) {
+    const curr = urutan[i];
+    const next = urutan[i + 1];
+
+    // Normalise Firestore Timestamp / string / Date
+    const rawCurr = formData[curr.field];
+    const rawNext = formData[next.field];
+
+    const currVal = rawCurr
+      ? (typeof rawCurr.toDate === 'function' ? rawCurr.toDate() : new Date(rawCurr))
+      : null;
+    const nextVal = rawNext
+      ? (typeof rawNext.toDate === 'function' ? rawNext.toDate() : new Date(rawNext))
+      : null;
+
+    // Skip jika salah satu kosong
+    if (!currVal || !nextVal) continue;
+
+    if (currVal > nextVal) {
+      errors.push(`${curr.label} tidak boleh lebih baru dari ${next.label}`);
+    }
+  }
+
+  return { valid: errors.length === 0, errors };
+}
 
 /**
  * Lookup config jenis layanan by id

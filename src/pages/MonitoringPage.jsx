@@ -8,15 +8,55 @@ import SidePanel from '../components/ui/SidePanel';
 import CaseForm from '../components/forms/CaseForm';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import LoginAlertModal from '../components/ui/LoginAlertModal';
-import { useGetCases, useCreateCase, useUpdateCase, useDeleteCase } from '../hooks/useCases';
+import { useGetCases, useCreateCase, useUpdateCase, useDeleteCase, useHolidays } from '../hooks/useCases';
 import { useSLAStatus } from '../hooks/useSLAStatus';
+import { calcMultiJatuhTempo, getStatusTerkritis, calcSLAStatus } from '../services/slaService';
 import { useToastStore } from '../store/toastStore';
 import { useAuthStore } from '../store/authStore';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import slaConfig from '../config/slaConfig.json';
 
+
 const PAGE_SIZE = 12;
+
+const STATUS_OPTIONS = [
+  { value: 'OVERDUE',          label: '🔴 Lewat Tempo'       },
+  { value: 'WARNING',          label: '🟡 Warning H-N'       },
+  { value: 'SAFE',             label: '🟢 Aman'              },
+  { value: 'COMPLETED_ONTIME', label: '✅ Tepat Waktu'       },
+  { value: 'COMPLETED_LATE',   label: '🟠 Terlambat Selesai' },
+];
+
+/**
+ * Helper: ambil JT yang ditampilkan di tabel (JT terkritis untuk multi-JT, JT tunggal untuk SKB)
+ */
+function getDisplayJT(kasus, holidays) {
+  const config = slaConfig.jenisLayanan.find(j => j.id === kasus.jenisLayananId);
+  if (config?.multiJatuhTempo) {
+    const multiJT    = calcMultiJatuhTempo(kasus, kasus.jenisLayananId, holidays);
+    const terkritis  = getStatusTerkritis(multiJT);
+    const tooltip    = multiJT
+      ? multiJT.map(jt =>
+          `${jt.label}: ${jt.jatuhTempo
+            ? format(new Date(jt.jatuhTempo), 'dd MMM yyyy')
+            : 'Belum diisi'}`
+        ).join('\n')
+      : null;
+    return {
+      jatuhTempo: terkritis?.jatuhTempo ?? null,
+      status:     terkritis?.status ?? null,
+      isMulti:    true,
+      tooltip,
+    };
+  }
+  return {
+    jatuhTempo: kasus.jatuhTempo,
+    status:     calcSLAStatus(kasus.jatuhTempo, kasus.jenisLayananId, kasus),
+    isMulti:    false,
+    tooltip:    null,
+  };
+}
 
 function fmtDate(ts) {
   if (!ts) return '-';
@@ -36,8 +76,11 @@ export default function MonitoringPage() {
   const [search, setSearch]         = useState('');
   const [filterJenis, setFilterJenis] = useState('');
   const [filterPenyuluh, setFilterPenyuluh] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
+  const [selectedStatuses, setSelectedStatuses] = useState([]);
   const [page, setPage] = useState(1);
+
+  const { data: holidays = [] } = useHolidays(new Date().getFullYear());
+
 
   const { data: rawCases = [], isLoading } = useGetCases({});
   const cases = useSLAStatus(rawCases);
@@ -55,9 +98,10 @@ export default function MonitoringPage() {
     }
     if (filterJenis) r = r.filter(c => c.jenisLayananId === filterJenis);
     if (filterPenyuluh) r = r.filter(c => c.penyuluhId === filterPenyuluh);
-    if (filterStatus) r = r.filter(c => c.slaStatus?.code === filterStatus);
+    if (selectedStatuses.length > 0) r = r.filter(c => selectedStatuses.includes(c.slaStatus?.code));
     return r;
-  }, [cases, search, filterJenis, filterPenyuluh, filterStatus]);
+  }, [cases, search, filterJenis, filterPenyuluh, selectedStatuses]);
+
 
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
   const paged = filtered.slice((page-1)*PAGE_SIZE, page*PAGE_SIZE);
@@ -144,15 +188,38 @@ export default function MonitoringPage() {
               <option value="">Semua Penyuluh</option>
               {slaConfig.penyuluh.map(p => <option key={p.id} value={p.id}>{p.nama}</option>)}
             </select>
-            <select value={filterStatus} onChange={e => { setFilterStatus(e.target.value); setPage(1); }}
-                    className="form-input text-xs w-auto">
-              <option value="">Semua Status</option>
-              <option value="OVERDUE">🔴 Lewat Tempo</option>
-              <option value="WARNING">🟡 Warning</option>
-              <option value="SAFE">🟢 Aman</option>
-              <option value="COMPLETED_ONTIME">✓ Tepat Waktu</option>
-              <option value="COMPLETED_LATE">⚠ Selesai Terlambat</option>
-            </select>
+            {/* Filter Status — multi-select pills */}
+            <div className="flex gap-2 flex-wrap">
+              {STATUS_OPTIONS.map(opt => (
+                <button
+                  key={opt.value}
+                  onClick={() => {
+                    setSelectedStatuses(prev =>
+                      prev.includes(opt.value)
+                        ? prev.filter(s => s !== opt.value)
+                        : [...prev, opt.value]
+                    );
+                    setPage(1);
+                  }}
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium border transition-all
+                    ${selectedStatuses.includes(opt.value)
+                      ? 'bg-[#0D2E5C] text-white border-[#0D2E5C]'
+                      : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+                    }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+              {selectedStatuses.length > 0 && (
+                <button
+                  onClick={() => { setSelectedStatuses([]); setPage(1); }}
+                  className="px-3 py-1.5 text-xs text-gray-400 hover:text-gray-600 underline"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+
             <span className="text-xs text-gray-400 ml-auto">{filtered.length} kasus</span>
           </div>
         </div>
@@ -201,7 +268,23 @@ export default function MonitoringPage() {
                       <td className="px-3 py-3 max-w-[160px]"><p className="truncate font-medium text-gray-600" title={jl?.nama}>{jl?.nama || k.jenisLayananId}</p></td>
                       <td className="px-3 py-3 font-semibold text-navy max-w-[150px]"><p className="truncate">{k.namaWP}</p></td>
                       <td className="px-3 py-3 font-mono text-gray-500">{k.npwp}</td>
-                      <td className="px-3 py-3 whitespace-nowrap">{fmtDate(k.jatuhTempo)}</td>
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        {(() => {
+                          const displayJT = getDisplayJT(k, holidays);
+                          return (
+                            <div title={displayJT.tooltip ?? ''}>
+                              <div className="text-sm font-medium">
+                                {displayJT.jatuhTempo
+                                  ? fmtDate(displayJT.jatuhTempo)
+                                  : '—'}
+                              </div>
+                              {displayJT.isMulti && (
+                                <div className="text-[10px] text-gray-400">ⓘ hover detail</div>
+                              )}
+                            </div>
+                          );
+                        })()}
+                      </td>
                       <td className="px-3 py-3">
                         <span className={`font-bold ${code==='OVERDUE'?'text-danger':code==='WARNING'?'text-gold':'text-teal'}`}>
                           {k.slaStatus.sisaHari}

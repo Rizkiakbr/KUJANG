@@ -79,6 +79,11 @@ export async function getCaseById(id) {
  * @param {{ uid, nama, role }} currentUser
  */
 export async function createCase(data, currentUser) {
+  // Penyuluh hanya bisa buat kasus untuk dirinya sendiri
+  if (currentUser.role === 'penyuluh') {
+    data = { ...data, penyuluhId: currentUser.penyuluhId };
+  }
+
   const jatuhTempo = calcJatuhTempo(data.tanggalLPAD, data.jenisLayananId);
   const tahapSaatIni = calcTahap(data);
 
@@ -127,6 +132,17 @@ export async function createCase(data, currentUser) {
  * @param {{ uid, nama, role }} currentUser
  */
 export async function updateCase(id, data, currentUser) {
+  // Penyuluh hanya bisa edit kasus miliknya
+  if (currentUser.role === 'penyuluh') {
+    const snap = await getDoc(doc(db, COLLECTION, id));
+    if (!snap.exists()) throw new Error('Kasus tidak ditemukan');
+    if (snap.data().penyuluhId !== currentUser.penyuluhId) {
+      throw new Error('Anda tidak memiliki akses untuk mengedit kasus ini');
+    }
+    // Paksa penyuluhId tidak bisa dimanipulasi
+    data = { ...data, penyuluhId: currentUser.penyuluhId };
+  }
+
   const jatuhTempo = calcJatuhTempo(data.tanggalLPAD, data.jenisLayananId);
   const tahapSaatIni = calcTahap(data);
 

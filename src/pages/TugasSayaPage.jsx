@@ -9,12 +9,14 @@ import CaseForm from '../components/forms/CaseForm';
 import UploadPenyuluhModal from '../components/ui/UploadPenyuluhModal';
 import { useAuthStore } from '../store/authStore';
 import { useToastStore } from '../store/toastStore';
-import { useGetCases, useCreateCase, useUpdateCase } from '../hooks/useCases';
+import { useGetCases, useCreateCase, useUpdateCase, useHolidays } from '../hooks/useCases';
 import { useSLAStatus } from '../hooks/useSLAStatus';
+import { calcMultiJatuhTempo, getStatusTerkritis, calcSLAStatus } from '../services/slaService';
 import { useQueryClient } from '@tanstack/react-query';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import slaConfig from '../config/slaConfig.json';
+
 
 const PAGE_SIZE = 12;
 
@@ -49,6 +51,8 @@ export default function TugasSayaPage() {
   const [search, setSearch]           = useState('');
   const [filterJenis, setFilterJenis] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+  const [selectedStatuses, setSelectedStatuses] = useState([]);
+
   const [page, setPage]               = useState(1);
   const [showUpload, setShowUpload]   = useState(false);
 
@@ -75,9 +79,14 @@ export default function TugasSayaPage() {
       result = result.filter(c => c.namaWP?.toLowerCase().includes(q) || c.npwp?.includes(q));
     }
     if (filterJenis) result = result.filter(c => c.jenisLayananId === filterJenis);
-    if (filterStatus) result = result.filter(c => c.slaStatus?.code === filterStatus);
+    if (selectedStatuses.length > 0) {
+      result = result.filter(c => selectedStatuses.includes(c.slaStatus?.code));
+    } else if (filterStatus) {
+      result = result.filter(c => c.slaStatus?.code === filterStatus);
+    }
     return result;
-  }, [cases, search, filterJenis, filterStatus]);
+  }, [cases, search, filterJenis, filterStatus, selectedStatuses]);
+
 
   // Pagination
   const totalPages = Math.ceil(filtered.length / PAGE_SIZE);
@@ -183,26 +192,44 @@ export default function TugasSayaPage() {
               ))}
             </select>
 
-            {/* Status filter pills */}
+            {/* Status filter pills — multi-select */}
             <div className="flex gap-1.5 flex-wrap">
               {[
-                { val: '',                 label: 'Semua',        cls: 'bg-gray-100 text-gray-600' },
-                { val: 'OVERDUE',          label: '🔴 Kritis',    cls: 'bg-red-50 text-red-700 border border-red-200' },
-                { val: 'WARNING',          label: '🟡 Warning',   cls: 'bg-yellow-50 text-yellow-700 border border-yellow-200' },
-                { val: 'SAFE',             label: '🟢 Aman',      cls: 'bg-green-50 text-green-700 border border-green-200' },
+                { val: 'OVERDUE',          label: '🔴 Kritis',     cls: 'bg-red-50 text-red-700 border border-red-200' },
+                { val: 'WARNING',          label: '🟡 Warning',    cls: 'bg-yellow-50 text-yellow-700 border border-yellow-200' },
+                { val: 'SAFE',             label: '🟢 Aman',       cls: 'bg-green-50 text-green-700 border border-green-200' },
                 { val: 'COMPLETED_ONTIME', label: '✓ Tepat Waktu', cls: 'bg-green-100 text-green-900 border border-green-400' },
-                { val: 'COMPLETED_LATE',   label: '⚠ Terlambat',  cls: 'bg-orange-50 text-orange-700 border border-orange-300' },
+                { val: 'COMPLETED_LATE',   label: '⚠ Terlambat',   cls: 'bg-orange-50 text-orange-700 border border-orange-300' },
               ].map(opt => (
                 <button
                   key={opt.val}
-                  onClick={() => { setFilterStatus(opt.val); setPage(1); }}
+                  onClick={() => {
+                    setSelectedStatuses(prev =>
+                      prev.includes(opt.val)
+                        ? prev.filter(s => s !== opt.val)
+                        : [...prev, opt.val]
+                    );
+                    setFilterStatus('');
+                    setPage(1);
+                  }}
                   className={`text-[10px] font-bold px-2.5 py-1 rounded-full transition-all whitespace-nowrap
-                    ${filterStatus === opt.val ? opt.cls + ' ring-1 ring-offset-1 ring-current' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
+                    ${selectedStatuses.includes(opt.val)
+                      ? opt.cls + ' ring-1 ring-offset-1 ring-current'
+                      : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}`}
                 >
                   {opt.label}
                 </button>
               ))}
+              {selectedStatuses.length > 0 && (
+                <button
+                  onClick={() => { setSelectedStatuses([]); setPage(1); }}
+                  className="text-[10px] px-2.5 py-1 text-gray-400 hover:text-gray-600 underline"
+                >
+                  Reset
+                </button>
+              )}
             </div>
+
 
             <span className="text-xs text-gray-400 ml-auto whitespace-nowrap">
               Menampilkan {paged.length} dari {filtered.length} kasus

@@ -1,12 +1,13 @@
+import { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
-import { Save, Info } from 'lucide-react';
+import { Save, Info, AlertTriangle } from 'lucide-react';
 import slaConfig from '../../config/slaConfig.json';
-import { calcJatuhTempo } from '../../services/slaService';
+import { calcJatuhTempo, validateUrutan } from '../../services/slaService';
 import { useAuthStore } from '../../store/authStore';
 import { SLABadge } from '../ui/Badge';
 import CurrencyField from './CurrencyField';
@@ -54,6 +55,23 @@ function FormField({ label, error, children, hint }) {
 }
 
 /**
+ * Dapatkan label No. LPAD berdasarkan jenis layanan
+ */
+function getLabelLPAD(jenisLayananId) {
+  const config = slaConfig.jenisLayanan.find(j => j.id === jenisLayananId);
+  switch (config?.category) {
+    case 'SKB':      return 'No. BPE *';
+    case 'SKPKPP':
+      if (jenisLayananId === 'skpkpp_plb')    return 'No. Dokumen LB *';
+      if (jenisLayananId === 'skpkpp_riksis') return 'No. SKPLB *';
+      return 'No. BPE *';
+    case 'Pendahuluan': return 'No. BPE *';
+    case 'LB':          return 'No. BPE *';
+    default:            return 'No. BPE / LPAD / SKPLB / PLB *';
+  }
+}
+
+/**
  * CaseForm — form tambah/edit kasus dengan form dinamis berdasarkan alurTahap
  * @param {{ initialData?, onSubmit, onCancel, isSubmitting, currentSLAStatus? }} props
  */
@@ -62,12 +80,20 @@ export default function CaseForm({ initialData, onSubmit, onCancel, isSubmitting
   const { userData } = useAuthStore();
   const role = userData?.role;
 
+  // Role penyuluh: terkunci ke akun sendiri
+  const isPenyuluh      = role === 'penyuluh';
+  const penyuluhIdSelf  = userData?.penyuluhId;
+  const namaSelf        = userData?.nama;
+
   // FIX 3: Load holidays untuk tahun berjalan (backward compatible — default [] jika gagal)
   const { data: holidays = [] } = useHolidays(new Date().getFullYear());
 
+  // State untuk error validasi urutan tanggal
+  const [urutanErrors, setUrutanErrors] = useState([]);
+
   const defaultValues = {
     jenisLayananId:     initialData?.jenisLayananId    || '',
-    penyuluhId:         initialData?.penyuluhId        || '',
+    penyuluhId:         initialData?.penyuluhId        || (isPenyuluh ? penyuluhIdSelf : ''),
     hasilPenelitian:    initialData?.hasilPenelitian   || '',
     namaWP:             initialData?.namaWP            || '',
     nomorKasusCoretax:  initialData?.nomorKasusCoretax || '',
@@ -99,6 +125,13 @@ export default function CaseForm({ initialData, onSubmit, onCancel, isSubmitting
     formState: { errors },
   } = useForm({ resolver: zodResolver(caseSchema), defaultValues });
 
+  // Auto-set penyuluhId untuk role penyuluh saat mount
+  useEffect(() => {
+    if (isPenyuluh && penyuluhIdSelf) {
+      setValue('penyuluhId', penyuluhIdSelf);
+    }
+  }, [isPenyuluh, penyuluhIdSelf, setValue]);
+
   // Auto-calculate jatuh tempo
   const watchedJenis = watch('jenisLayananId');
   const watchedLPAD  = watch('tanggalLPAD');
@@ -125,8 +158,20 @@ export default function CaseForm({ initialData, onSubmit, onCancel, isSubmitting
     } catch (_) {}
   }
 
+  // Label LPAD dinamis berdasarkan jenis layanan
+  const labelLPAD = getLabelLPAD(watchedJenis);
+
   const handleFormSubmit = (data) => {
-    // Konversi string date ke Date objects
+    // 1. Validasi urutan tanggal
+    const { valid, errors: urutanErr } = validateUrutan(data, data.jenisLayananId);
+    if (!valid) {
+      setUrutanErrors(urutanErr);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+    setUrutanErrors([]);
+
+    // 2. Konversi string date ke Date objects
     const parsed = {
       ...data,
       tanggalLPAD:         data.tanggalLPAD         ? new Date(data.tanggalLPAD)         : null,
@@ -139,6 +184,21 @@ export default function CaseForm({ initialData, onSubmit, onCancel, isSubmitting
 
   return (
     <form onSubmit={handleSubmit(handleFormSubmit)} className="space-y-5">
+
+      {/* Error box validasi urutan tanggal */}
+      {urutanErrors.length > 0 && (
+        <div className="bg-red-50 border border-red-300 rounded-lg p-4">
+          <p className="text-red-700 font-semibold text-sm mb-2 flex items-center gap-2">
+            <AlertTriangle size={14} />
+            Urutan tanggal dokumen tidak valid:
+          </p>
+          <ul className="list-disc list-inside space-y-1">
+            {urutanErrors.map((err, i) => (
+              <li key={i} className="text-red-600 text-sm">{err}</li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Info box jika edit */}
       {isEdit && currentSLAStatus && (
@@ -168,14 +228,35 @@ export default function CaseForm({ initialData, onSubmit, onCancel, isSubmitting
             </select>
           </FormField>
 
-          <FormField label="Penyuluh Penanggung Jawab *" error={errors.penyuluhId?.message}>
-            <select {...register('penyuluhId')} className={`form-input ${errors.penyuluhId ? 'form-input-error' : ''}`}>
-              <option value="">— Pilih Penyuluh —</option>
-              {slaConfig.penyuluh.map(p => (
-                <option key={p.id} value={p.id}>{p.nama}</option>
-              ))}
-            </select>
-          </FormField>
+          {/* Dropdown Penyuluh — terkunci untuk role penyuluh */}
+          <div>
+            <label className="form-label">
+              Penyuluh Penanggung Jawab *
+              {isPenyuluh && (
+                <span className="text-xs text-gray-400 ml-2">(otomatis: akun Anda)</span>
+              )}
+            </label>
+            {isPenyuluh ? (
+              <>
+                <input
+                  type="text"
+                  value={namaSelf || ''}
+                  disabled
+                  className="form-input bg-gray-50 text-gray-500 border-gray-200 cursor-not-allowed"
+                />
+                {/* Hidden field untuk submit */}
+                <input type="hidden" {...register('penyuluhId')} />
+              </>
+            ) : (
+              <select {...register('penyuluhId')} className={`form-input ${errors.penyuluhId ? 'form-input-error' : ''}`}>
+                <option value="">— Pilih Penyuluh —</option>
+                {slaConfig.penyuluh.map(p => (
+                  <option key={p.id} value={p.id}>{p.nama}</option>
+                ))}
+              </select>
+            )}
+            {errors.penyuluhId && <p className="form-error">{errors.penyuluhId.message}</p>}
+          </div>
 
           <FormField label="NPWP (16 digit) *" error={errors.npwp?.message}>
             <input
@@ -215,12 +296,10 @@ export default function CaseForm({ initialData, onSubmit, onCancel, isSubmitting
         </h3>
         <div className="space-y-3">
 
-          {/* FIX 2: Label diperbarui + tanda * wajib */}
           <FormField
             label={
               <span>
-                No. BPE / LPAD / SKPLB / PLB{' '}
-                <span className="text-red-500">*</span>
+                {labelLPAD}
               </span>
             }
             error={errors.nomorLPAD?.message}
@@ -234,7 +313,6 @@ export default function CaseForm({ initialData, onSubmit, onCancel, isSubmitting
             />
           </FormField>
 
-          {/* FIX 2: Label Tanggal diperbarui */}
           <FormField
             label={
               <span>
@@ -264,7 +342,6 @@ export default function CaseForm({ initialData, onSubmit, onCancel, isSubmitting
                 ? format(autoJatuhTempo, 'd MMMM yyyy', { locale: idLocale })
                 : 'Pilih Jenis Layanan + Tanggal BPE/LPAD'}
             </div>
-            {/* FIX 2: Hint dinamis berdasarkan kondisi field */}
             <p className="text-[10px] text-gray-400 mt-1">
               {watchedLPAD && watchedJenis
                 ? '✓ Dihitung otomatis dari Jenis Layanan + Tanggal BPE'

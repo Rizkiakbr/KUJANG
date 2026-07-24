@@ -1,17 +1,31 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit } from 'lucide-react';
+import { ArrowLeft, Edit, Upload, Trash2, FileText, ExternalLink } from 'lucide-react';
 import Topbar from '../components/layout/Topbar';
 import Navbar from '../components/layout/Navbar';
 import Timeline from '../components/ui/Timeline';
 import { SLABadge, TahapBadge } from '../components/ui/Badge';
 import SidePanel from '../components/ui/SidePanel';
 import CaseForm from '../components/forms/CaseForm';
-import { useGetCaseById, useUpdateCase } from '../hooks/useCases';
+import { useGetCaseById, useUpdateCase, useHolidays } from '../hooks/useCases';
 import { useSLAStatus } from '../hooks/useSLAStatus';
+import { calcMultiJatuhTempo, getStatusTerkritis } from '../services/slaService';
+import { uploadDokumen, getDokumenKasus, deleteDokumen } from '../services/documentService';
+import { useAuthStore } from '../store/authStore';
+import { useToastStore } from '../store/toastStore';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import slaConfig from '../config/slaConfig.json';
+
+/* ── Konfigurasi tahap upload PDF ── */
+const TAHAP_UPLOAD = [
+  { key: 'produk-hukum', label: 'Produk Hukum', syarat: 'tanggalProdukHukum',
+    roles: ['penyuluh', 'pelaksana'] },
+  { key: 'skpkpp',       label: 'SKPKPP',        syarat: 'tanggalSKPKPP',
+    roles: ['penyuluh', 'pelaksana'] },
+  { key: 'spmkp',        label: 'SPMKP',          syarat: 'tanggalSPMKP',
+    roles: ['pelaksana'] },
+];
 
 function fmtDate(ts) {
   if (!ts) return '-';
@@ -32,20 +46,84 @@ function DocRow({ label, nomor, tanggal }) {
   );
 }
 
+/**
+ * Badge warna per status JT
+ */
+function JTStatusBadge({ status }) {
+  if (!status) return null;
+  const map = {
+    OVERDUE:          'bg-red-100 text-red-700 border-red-200',
+    WARNING:          'bg-yellow-100 text-yellow-700 border-yellow-200',
+    SAFE:             'bg-green-100 text-green-700 border-green-200',
+    COMPLETED_ONTIME: 'bg-green-50 text-green-600 border-green-200',
+    COMPLETED_LATE:   'bg-orange-100 text-orange-700 border-orange-200',
+  };
+  return (
+    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${map[status.code] || 'bg-gray-100 text-gray-500'}`}>
+      {status.label}
+    </span>
+  );
+}
+
 export default function DetailKasusPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [panelOpen, setPanelOpen] = useState(false);
 
+  const { userData } = useAuthStore();
+  const userRole = userData?.role;
+  const addToast = useToastStore(s => s.addToast);
+
   const { data: rawCase, isLoading } = useGetCaseById(id);
   const casesWithSLA = useSLAStatus(rawCase ? [rawCase] : []);
   const kasus = casesWithSLA[0];
+
+  const { data: holidays = [] } = useHolidays(new Date().getFullYear());
+
+  // Dokumen per tahap dari Firebase Storage
+  const [dokumen, setDokumen] = useState({});
+  const [uploadingTahap, setUploadingTahap] = useState(null);
+
+  useEffect(() => {
+    if (id) {
+      getDokumenKasus(id)
+        .then(setDokumen)
+        .catch(() => setDokumen({}));
+    }
+  }, [id]);
 
   const updateMutation = useUpdateCase();
 
   const handleUpdate = async (data) => {
     await updateMutation.mutateAsync({ id, data });
     setPanelOpen(false);
+  };
+
+  const handleUpload = async (file, tahap) => {
+    if (!file) return;
+    setUploadingTahap(tahap);
+    try {
+      await uploadDokumen(file, id, tahap, userData);
+      const updated = await getDokumenKasus(id);
+      setDokumen(updated);
+      addToast({ type: 'success', title: 'Upload Berhasil', message: `PDF ${tahap} berhasil diupload` });
+    } catch (err) {
+      addToast({ type: 'danger', title: 'Upload Gagal', message: err.message });
+    } finally {
+      setUploadingTahap(null);
+    }
+  };
+
+  const handleDeleteDokumen = async (fullPath) => {
+    if (!window.confirm('Yakin hapus dokumen ini?')) return;
+    try {
+      await deleteDokumen(fullPath, userData);
+      const updated = await getDokumenKasus(id);
+      setDokumen(updated);
+      addToast({ type: 'info', title: 'Dokumen Dihapus', message: 'PDF berhasil dihapus' });
+    } catch (err) {
+      addToast({ type: 'danger', title: 'Gagal Hapus', message: err.message });
+    }
   };
 
   if (isLoading) {
@@ -73,6 +151,23 @@ export default function DetailKasusPage() {
 
   const jl = slaConfig.jenisLayanan.find(j => j.id === kasus.jenisLayananId);
   const py = slaConfig.penyuluh.find(p => p.id === kasus.penyuluhId);
+
+  // Multi JT — hanya untuk jenis layanan yang memiliki multiJatuhTempo
+  const multiJT = jl?.multiJatuhTempo
+    ? calcMultiJatuhTempo(kasus, kasus.jenisLayananId, holidays)
+    : null;
+
+  // Warna baris per status JT
+  const jtRowColor = (code) => {
+    if (!code) return 'bg-gray-50 border-gray-200';
+    return {
+      OVERDUE:          'bg-red-50 border-red-200',
+      WARNING:          'bg-yellow-50 border-yellow-200',
+      SAFE:             'bg-green-50 border-green-200',
+      COMPLETED_ONTIME: 'bg-green-50 border-green-200',
+      COMPLETED_LATE:   'bg-orange-50 border-orange-200',
+    }[code] || 'bg-gray-50 border-gray-200';
+  };
 
   return (
     <div className="min-h-screen bg-[#F3F5F9]">
@@ -119,17 +214,65 @@ export default function DetailKasusPage() {
               </div>
             </div>
 
-            {/* Jatuh tempo */}
-            <div className="flex-shrink-0 bg-gray-50 rounded-xl px-5 py-4 text-center border border-gray-100">
-              <p className="text-[10px] font-bold uppercase text-gray-400">Jatuh Tempo</p>
-              <p className="font-bold text-navy text-sm mt-1">{fmtDate(kasus.jatuhTempo)}</p>
-              <p className={`text-xs font-semibold mt-1
-                ${kasus.slaStatus.code === 'OVERDUE' ? 'text-danger' : kasus.slaStatus.code === 'WARNING' ? 'text-gold' : 'text-teal'}`}>
-                {kasus.slaStatus.label}
-              </p>
-            </div>
+            {/* Jatuh tempo — hanya tampil JT utama (SKB atau JT terkritis) */}
+            {!jl?.multiJatuhTempo && (
+              <div className="flex-shrink-0 bg-gray-50 rounded-xl px-5 py-4 text-center border border-gray-100">
+                <p className="text-[10px] font-bold uppercase text-gray-400">Jatuh Tempo</p>
+                <p className="font-bold text-navy text-sm mt-1">{fmtDate(kasus.jatuhTempo)}</p>
+                <p className={`text-xs font-semibold mt-1
+                  ${kasus.slaStatus.code === 'OVERDUE' ? 'text-danger' : kasus.slaStatus.code === 'WARNING' ? 'text-gold' : 'text-teal'}`}>
+                  {kasus.slaStatus.label}
+                </p>
+              </div>
+            )}
           </div>
         </div>
+
+        {/* ── Section Multi JT — hanya untuk No.1-4 ── */}
+        {jl?.multiJatuhTempo && multiJT && (
+          <div className="card p-5 mb-5">
+            <h2 className="font-bold text-navy text-sm mb-4 flex items-center gap-2">
+              <span className="w-1 h-4 bg-gold rounded-full" />
+              ⏱ Jatuh Tempo per Tahap
+            </h2>
+            <div className="flex flex-col gap-3">
+              {multiJT.map((jt, i) => (
+                <div
+                  key={i}
+                  className={`flex items-center justify-between p-3 rounded-lg border ${jtRowColor(jt.status?.code)}`}
+                >
+                  <div>
+                    <p className="font-semibold text-sm text-gray-800">
+                      {i + 1}. {jt.label}
+                    </p>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Dihitung dari: <span className="font-medium">{jt.labelMulai}</span>
+                    </p>
+                    {!kasus[jt.mulaiDari] && (
+                      <p className="text-xs text-gray-400 italic mt-0.5">
+                        ⏳ Menunggu {jt.labelMulai} diisi
+                      </p>
+                    )}
+                  </div>
+                  <div className="text-right">
+                    {jt.jatuhTempo ? (
+                      <>
+                        <p className="font-bold text-sm text-gray-800">
+                          {format(new Date(jt.jatuhTempo), 'dd MMM yyyy', { locale: idLocale })}
+                        </p>
+                        <div className="mt-1">
+                          <JTStatusBadge status={jt.status} />
+                        </div>
+                      </>
+                    ) : (
+                      <span className="text-xs text-gray-400">Belum dapat dihitung</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Two-column: Timeline + Dokumen */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-5">
@@ -165,6 +308,74 @@ export default function DetailKasusPage() {
             )}
           </div>
         </div>
+
+        {/* ── Upload PDF per Tahap ── */}
+        {TAHAP_UPLOAD
+          .filter(t => kasus[t.syarat] && t.roles.includes(userRole))
+          .map(tahap => (
+            <div key={tahap.key} className="card p-5 mb-4">
+              <h3 className="font-semibold text-sm text-navy mb-3 flex items-center gap-2">
+                <FileText size={14} />
+                Dokumen PDF — {tahap.label}
+              </h3>
+
+              {/* List dokumen yang sudah ada */}
+              {(dokumen[tahap.key] || []).map((doc, i) => (
+                <div
+                  key={i}
+                  className="flex items-center justify-between p-2.5 bg-gray-50 rounded-lg mb-2 border border-gray-100"
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileText size={13} className="text-red-500 flex-shrink-0" />
+                    <span className="text-xs text-gray-700 truncate">{doc.filename}</span>
+                  </div>
+                  <div className="flex gap-3 flex-shrink-0 ml-3">
+                    <a
+                      href={doc.downloadURL}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs text-blue-600 hover:underline flex items-center gap-1"
+                    >
+                      <ExternalLink size={11} /> Lihat
+                    </a>
+                    {userRole === 'pelaksana' && (
+                      <button
+                        onClick={() => handleDeleteDokumen(doc.fullPath)}
+                        className="text-xs text-red-500 hover:underline flex items-center gap-1"
+                      >
+                        <Trash2 size={11} /> Hapus
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {/* Upload zone */}
+              <label className={`flex flex-col items-center justify-center border-2 border-dashed
+                rounded-lg p-5 cursor-pointer transition-colors
+                ${uploadingTahap === tahap.key
+                  ? 'border-blue-300 bg-blue-50'
+                  : 'border-gray-300 hover:border-blue-400 hover:bg-blue-50'}`}>
+                {uploadingTahap === tahap.key ? (
+                  <div className="w-5 h-5 border-2 border-blue-400 border-t-transparent rounded-full animate-spin mb-2" />
+                ) : (
+                  <Upload size={20} className="text-gray-400 mb-1" />
+                )}
+                <span className="text-sm text-gray-600">
+                  {uploadingTahap === tahap.key ? 'Mengupload...' : `Upload PDF dokumen ${tahap.label}`}
+                </span>
+                <span className="text-xs text-gray-400 mt-1">Maks. 10MB · PDF saja</span>
+                <input
+                  type="file"
+                  accept="application/pdf"
+                  className="hidden"
+                  disabled={uploadingTahap !== null}
+                  onChange={e => handleUpload(e.target.files[0], tahap.key)}
+                />
+              </label>
+            </div>
+          ))
+        }
 
         {/* Footer */}
         <div className="flex gap-3">
